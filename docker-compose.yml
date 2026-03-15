@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  # PostgreSQL数据库
+  postgres:
+    image: postgres:15
+    container_name: novel_ai_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: novel_ai
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - novel_ai_network
+
+  # 后端服务（可选：也可本地运行）
+  # backend:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   container_name: novel_ai_backend
+  #   environment:
+  #     DATABASE_URL: postgresql://postgres:postgres@postgres:5432/novel_ai
+  #   ports:
+  #     - "8000:8000"
+  #   depends_on:
+  #     - postgres
+  #   networks:
+  #     - novel_ai_network
+
+volumes:
+  postgres_data:
+
+networks:
+  novel_ai_network:
+    driver: bridge
