@@ -1,12 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, List
 from app.core.database import get_db
+from app.core.dependencies import get_current_user
 from app.core.exception_handler import BusinessException, NotFoundException
 from app.core.logger import logger
 from app.models.chapter import Chapter
+from app.models.content_generation_draft import ContentGenerationDraft
 from app.models.project import Project
+from app.models.user import User
 from app.schemas.chapter import ChapterCreate, ChapterUpdate, ChapterResponse, ChapterListResponse
+from app.schemas.content_generation import (
+    ChapterGenerateRequest, ChapterGenerateResponse,
+    GeneratedVersion, ContextUsed, SelectVersionRequest
+)
 from app.services.ai_service import ai_service
 
 router = APIRouter(prefix="/chapters", tags=["章节管理"])
@@ -260,3 +267,242 @@ def generate_chapter_content(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+
+@router.post("/generate", summary="统一章节生成")
+def generate_chapter_versions(
+    request: ChapterGenerateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    统一的章节生成端点，支持首章和续写模式
+
+    Args:
+        request: 生成请求，包含生成模式和相关参数
+        current_user: 当前认证用户
+        db: 数据库会话
+
+    Returns:
+        ChapterGenerateResponse: 包含生成的版本列表
+    """
+    # 验证项目所有权
+    project = db.query(Project).filter(Project.id == request.project_id).first()
+    if not project:
+        raise NotFoundException("项目不存在")
+
+    if project.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="无权限访问该项目"
+        )
+
+    # 验证章节号是否超出范围
+    existing_chapters = db.query(Chapter).filter(
+        Chapter.project_id == request.project_id
+    ).count()
+
+    if request.chapter_number > existing_chapters + 1:
+        raise BusinessException(
+            f"章节号超出范围，当前最多可创建第{existing_chapters + 1}章"
+        )
+
+    # 转换请求数据为字典格式
+    request_dict = request.model_dump()
+
+    # 生成多个版本
+    try:
+        versions, context_used = ai_service.generate_chapter_versions(request_dict, db)
+
+        # 删除旧的草稿
+        db.query(ContentGenerationDraft).filter(
+            ContentGenerationDraft.chapter_id == request.chapter_number
+        ).delete(synchronize_session=False)
+
+        # 保存新版本到草稿表
+        for version in versions:
+            draft = ContentGenerationDraft(
+                chapter_id=request.chapter_number,
+                version_id=version["version_id"],
+                content=version["content"],
+                word_count=version["word_count"],
+                summary=version["summary"],
+                generation_mode=request_dict.get("mode", "standard"),
+                temperature=request_dict.get("temperature")
+            )
+            db.add(draft)
+
+        db.commit()
+
+        # 构建响应数据
+        response_data = {
+            "chapter_id": request.chapter_number,
+            "versions": [
+                {
+                    "version_id": v["version_id"],
+                    "content": v["content"],
+                    "word_count": v["word_count"],
+                    "summary": v["summary"]
+                }
+                for v in versions
+            ],
+            "context_used": context_used
+        }
+
+        return ChapterGenerateResponse(
+            code=200,
+            message="生成成功",
+            data=response_data
+        )
+
+    except Exception as e:
+        logger.error(f"章节生成失败: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"生成失败: {str(e)}"
+        )
+
+
+@router.post("/{chapter_id}/select-version", summary="选择版本")
+def select_version(
+    chapter_id: int,
+    request: SelectVersionRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    选择并应用特定的生成版本
+
+    Args:
+        chapter_id: 章节ID
+        request: 版本选择请求
+        current_user: 当前认证用户
+        db: 数据库会话
+
+    Returns:
+        更新后的章节信息
+    """
+    # 获取章节并验证权限
+    chapter = db.query(Chapter).filter(Chapter.id == chapter_id).first()
+    if not chapter:
+        raise NotFoundException("章节不存在")
+
+    # 验证项目所有权
+    if chapter.project.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="无权限访问该章节"
+        )
+
+    # 查找指定的版本
+    draft = db.query(ContentGenerationDraft).filter(
+        ContentGenerationDraft.chapter_id == chapter_id,
+        ContentGenerationDraft.version_id == request.version_id
+    ).first()
+
+    if not draft:
+        raise NotFoundException("指定的版本不存在")
+
+    # 更新章节内容
+    content_to_use = request.edited_content if request.edited_content else draft.content
+    chapter.content = content_to_use
+    chapter.word_count = len(content_to_use)
+    chapter.status = chapter.__class__.status.DRAFT
+    chapter.version = chapter.version + 1
+
+    # 标记选中的版本
+    draft.is_selected = True
+
+    # 取消其他版本的选中状态
+    db.query(ContentGenerationDraft).filter(
+        ContentGenerationDraft.chapter_id == chapter_id,
+        ContentGenerationDraft.id != draft.id
+    ).update({"is_selected": False})
+
+    db.commit()
+    db.refresh(chapter)
+
+    logger.info(f"章节 {chapter_id} 选择版本成功: {request.version_id}")
+
+    return {
+        "code": 200,
+        "message": "选择成功",
+        "data": {
+            "id": chapter.id,
+            "project_id": chapter.project_id,
+            "chapter_number": chapter.chapter_number,
+            "title": chapter.title,
+            "volume": chapter.volume,
+            "content": chapter.content,
+            "outline": chapter.outline,
+            "summary": chapter.summary,
+            "pov_character_id": chapter.pov_character_id,
+            "featured_characters": chapter.featured_characters,
+            "locations": chapter.locations,
+            "status": chapter.status.value if hasattr(chapter.status, 'value') else str(chapter.status),
+            "word_count": chapter.word_count,
+            "version": chapter.version,
+            "created_at": chapter.created_at.isoformat() if chapter.created_at else None,
+            "updated_at": chapter.updated_at.isoformat() if chapter.updated_at else None,
+        }
+    }
+
+
+@router.get("/{chapter_id}/drafts", summary="获取生成版本列表")
+def get_generation_drafts(
+    chapter_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    获取章节的所有生成版本
+
+    Args:
+        chapter_id: 章节ID
+        current_user: 当前认证用户
+        db: 数据库会话
+
+    Returns:
+        所有生成版本的列表
+    """
+    # 获取章节并验证权限
+    chapter = db.query(Chapter).filter(Chapter.id == chapter_id).first()
+    if not chapter:
+        raise NotFoundException("章节不存在")
+
+    # 验证项目所有权
+    if chapter.project.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="无权限访问该章节"
+        )
+
+    # 获取所有草稿
+    drafts = db.query(ContentGenerationDraft).filter(
+        ContentGenerationDraft.chapter_id == chapter_id
+    ).order_by(ContentGenerationDraft.created_at.desc()).all()
+
+    # 转换为响应格式
+    draft_list = []
+    for draft in drafts:
+        draft_list.append({
+            "id": draft.id,
+            "version_id": draft.version_id,
+            "content": draft.content,
+            "word_count": draft.word_count,
+            "summary": draft.summary,
+            "is_selected": draft.is_selected,
+            "generation_mode": draft.generation_mode,
+            "temperature": float(draft.temperature) if draft.temperature else None,
+            "created_at": draft.created_at.isoformat() if draft.created_at else None,
+        })
+
+    return {
+        "code": 200,
+        "message": "获取成功",
+        "data": {
+            "chapter_id": chapter_id,
+            "drafts": draft_list,
+            "total": len(draft_list)
+        }
+    }
