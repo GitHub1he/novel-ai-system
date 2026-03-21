@@ -19,7 +19,10 @@
       "Bash(curl:*)",
       "Bash(docker-compose logs:*)",
       "Bash(taskkill:*)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "Bash(timeout:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)"
     ]
   }
 }
