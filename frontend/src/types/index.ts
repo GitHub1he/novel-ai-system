@@ -111,3 +111,10 @@ export interface PlotNode {
   created_at: string
   updated_at?: string
 }
+
+export interface GeneratedVersion {
+  version_id: string
+  content: string
+  summary: string
+  word_count: number
+}
