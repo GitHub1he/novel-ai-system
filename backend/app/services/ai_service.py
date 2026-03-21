@@ -8,6 +8,7 @@ from app.models.plot_node import PlotNode
 from app.models.chapter import Chapter
 from typing import List, Dict, Optional
 import json
+import uuid
 
 
 class AIService:
@@ -451,6 +452,301 @@ class AIService:
             "validated_world_settings": validated_settings,
             "validated_plot_nodes": validated_plots
         }
+
+    def generate_chapter_versions(self, request: dict, db: SessionLocal) -> tuple[List[Dict], Dict]:
+        """
+        生成多个版本的章节内容
+
+        Args:
+            request: ChapterGenerateRequest字典格式
+            db: 数据库会话
+
+        Returns:
+            tuple: (版本列表, 使用的上下文字典)
+        """
+        from app.schemas.content_generation import FirstChapterMode, ContinueMode
+
+        if not self.client:
+            raise ValueError("AI服务未配置，请设置OPENAI_API_KEY")
+
+        # 构建生成上下文
+        context_str, context_used = self._build_generation_context(request, db)
+
+        # 生成多个版本
+        versions = []
+        base_temperature = request.get('temperature', 0.8)
+        version_count = min(request.get('versions', 3), 3)  # 最多3个版本
+
+        for i in range(version_count):
+            temperature = base_temperature + (i * 0.05)  # 温度递增：0.8, 0.85, 0.9
+
+            # 生成系统提示
+            system_prompt = self._build_system_prompt(request, context_str)
+
+            # 生成用户提示
+            user_prompt = self._build_user_prompt(request)
+
+            try:
+                response = self.client.chat.completions.create(
+                    model=settings.AI_MODEL,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    temperature=temperature,
+                    max_tokens=request.get('word_count', 2000) * 2
+                )
+
+                content = response.choices[0].message.content
+                summary = self._generate_version_summary(content)
+
+                versions.append({
+                    "version_id": str(uuid.uuid4()),
+                    "content": content,
+                    "word_count": len(content),
+                    "summary": summary
+                })
+
+            except Exception as e:
+                # 如果某个版本生成失败，创建空版本
+                versions.append({
+                    "version_id": str(uuid.uuid4()),
+                    "content": f"生成失败: {str(e)}",
+                    "word_count": 0,
+                    "summary": "生成失败"
+                })
+
+        return versions, context_used
+
+    def _build_generation_context(self, request: dict, db: SessionLocal) -> tuple[str, Dict]:
+        """
+        构建AI生成的上下文
+
+        Args:
+            request: 请求参数
+            db: 数据库会话
+
+        Returns:
+            tuple: (上下文字符串, 使用的上下文信息)
+        """
+        from app.schemas.content_generation import FirstChapterMode, ContinueMode
+
+        project_id = request['project_id']
+        chapter_number = request['chapter_number']
+
+        # 获取项目信息
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if not project:
+            raise ValueError(f"项目ID {project_id} 不存在")
+
+        # 构建基础项目信息
+        project_info = {
+            "title": project.title,
+            "genre": project.genre,
+            "summary": project.summary or "",
+            "style": project.style or "通俗"
+        }
+
+        context_parts = []
+        context_used = {
+            "previous_chapter": None,
+            "characters": [],
+            "world_settings": [],
+            "plot_nodes": []
+        }
+
+        # 判断是首章还是续写
+        if request.get('first_chapter_mode'):
+            # 首章模式
+            first_chapter_mode = request['first_chapter_mode']
+            context_parts.append(f"## 首章生成模式\n")
+            context_parts.append(f"开篇场景：{first_chapter_mode.get('opening_scene', '')}\n")
+            if first_chapter_mode.get('key_elements'):
+                context_parts.append(f"核心要素：{', '.join(first_chapter_mode['key_elements'])}\n")
+            if first_chapter_mode.get('tone'):
+                context_parts.append(f"开篇基调：{first_chapter_mode['tone']}\n")
+
+        elif request.get('continue_mode'):
+            # 续写模式
+            continue_mode = request['continue_mode']
+            previous_chapter_id = continue_mode['previous_chapter_id']
+            previous_chapter = db.query(Chapter).filter(Chapter.id == previous_chapter_id).first()
+
+            if previous_chapter and previous_chapter.content:
+                # 只取最后800个字符
+                previous_context = previous_chapter.content[-800:].strip()
+                context_parts.append(f"## 前文内容\n")
+                context_parts.append(f"{previous_context}\n")
+                context_used["previous_chapter"] = {
+                    "chapter_number": previous_chapter.chapter_number,
+                    "last_content": previous_context
+                }
+
+            context_parts.append(f"\n## 续写模式\n")
+            context_parts.append(f"衔接方式：{continue_mode.get('transition', 'immediate')}\n")
+            context_parts.append(f"情节方向：{continue_mode.get('plot_direction', '')}\n")
+            if continue_mode.get('conflict_point'):
+                context_parts.append(f"核心冲突：{continue_mode['conflict_point']}\n")
+
+        # 添加项目基础信息
+        context_parts.append(f"\n## 小说信息\n")
+        context_parts.append(f"书名：{project_info['title']}\n")
+        context_parts.append(f"类型：{project_info['genre']}\n")
+        context_parts.append(f"简介：{project_info['summary']}\n")
+        context_parts.append(f"文风：{project_info['style']}\n")
+
+        # 添加人物信息
+        characters = []
+        if request.get('featured_characters'):
+            # 使用指定的人物
+            character_ids = request['featured_characters']
+            characters = db.query(Character).filter(
+                Character.id.in_(character_ids),
+                Character.project_id == project_id
+            ).all()
+        else:
+            # 使用相关人物（简化处理，使用前5个）
+            characters = db.query(Character).filter(
+                Character.project_id == project_id
+            ).limit(5).all()
+
+        if characters:
+            context_parts.append(f"\n## 人物设定\n")
+            for char in characters:
+                context_parts.append(f"- {char.name}：{char.personality or '暂无描述'}\n")
+                context_used["characters"].append(char.name)
+
+        # 添加世界观设定
+        world_settings = []
+        if request.get('related_world_settings'):
+            # 使用指定的世界观
+            setting_ids = request['related_world_settings']
+            world_settings = db.query(WorldSetting).filter(
+                WorldSetting.id.in_(setting_ids),
+                WorldSetting.project_id == project_id
+            ).all()
+        else:
+            # 使用相关世界观（简化处理，使用前3个）
+            world_settings = db.query(WorldSetting).filter(
+                WorldSetting.project_id == project_id
+            ).limit(3).all()
+
+        if world_settings:
+            context_parts.append(f"\n## 世界观设定\n")
+            for setting in world_settings:
+                context_parts.append(f"- {setting.name}：{setting.description or '暂无描述'}\n")
+                context_used["world_settings"].append(setting.name)
+
+        # 添加情节节点
+        plot_nodes = []
+        if request.get('related_plot_nodes'):
+            # 使用指定的情节节点
+            plot_ids = request['related_plot_nodes']
+            plot_nodes = db.query(PlotNode).filter(
+                PlotNode.id.in_(plot_ids),
+                PlotNode.project_id == project_id
+            ).all()
+        else:
+            # 使用相关情节节点（简化处理，使用前5个）
+            plot_nodes = db.query(PlotNode).filter(
+                PlotNode.project_id == project_id
+            ).limit(5).all()
+
+        if plot_nodes:
+            context_parts.append(f"\n## 情节节点\n")
+            for node in plot_nodes:
+                context_parts.append(f"- {node.title}：{node.description or '暂无描述'}\n")
+                context_used["plot_nodes"].append(node.title)
+
+        # 添加POV人物信息
+        if request.get('pov_character_id'):
+            pov_character = db.query(Character).filter(
+                Character.id == request['pov_character_id'],
+                Character.project_id == project_id
+            ).first()
+            if pov_character:
+                context_parts.append(f"\n## 叙事视角\n")
+                context_parts.append(f"POV人物：{pov_character.name}\n")
+
+        # 添加其他要求
+        word_count = request.get('word_count', 2000)
+        context_parts.append(f"\n## 生成要求\n")
+        context_parts.append(f"1. 目标字数：约{word_count}字\n")
+        context_parts.append(f"2. 章节序号：第{chapter_number}章\n")
+
+        if request.get('style_intensity'):
+            intensity = request['style_intensity']
+            context_parts.append(f"3. 风格强度：{intensity}%\n")
+
+        context_parts.append(f"\n请根据以上设定和要求，创作小说内容。")
+
+        return "".join(context_parts), context_used
+
+    def _build_system_prompt(self, request: dict, context: str) -> str:
+        """
+        构建系统提示词
+
+        Args:
+            request: 请求参数
+            context: 上下文字符串
+
+        Returns:
+            系统提示词
+        """
+        base_prompt = f"""你是一个专业的小说创作助手。根据以下设定和用户要求，创作高质量的小说内容。
+
+{context}
+
+创作规则：
+1. 严格遵循设定的世界观规则和人物性格
+2. 保持文风的一致性
+3. 确保情节逻辑连贯
+4. 适当运用对话、心理活动、环境描写等叙事技巧
+5. 避免出现与设定矛盾的内容
+
+请创作出引人入胜、符合设定的章节内容。"""
+
+        return base_prompt
+
+    def _build_user_prompt(self, request: dict) -> str:
+        """
+        构建用户提示词
+
+        Args:
+            request: 请求参数
+
+        Returns:
+            用户提示词
+        """
+        chapter_number = request['chapter_number']
+        word_count = request.get('word_count', 2000)
+
+        prompt = f"请创作第{chapter_number}章，目标字数约{word_count}字。"
+
+        if request.get('continue_mode'):
+            prompt += f"根据指定的续写模式和情节方向，创作后续内容。"
+
+        return prompt
+
+    def _generate_version_summary(self, content: str) -> str:
+        """
+        从内容生成摘要
+
+        Args:
+            content: 章节内容
+
+        Returns:
+            内容摘要
+        """
+        if not content or len(content) < 100:
+            return "内容过短，无法生成摘要"
+
+        # 简单实现：取开头100字
+        summary = content[:100].replace('\n', ' ').strip()
+        if len(summary) > 100:
+            summary = summary[:97] + "..."
+
+        return summary
 
 
 # 全局AI服务实例
