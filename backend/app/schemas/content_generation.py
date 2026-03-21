@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 from enum import Enum
 
@@ -27,8 +27,8 @@ class FirstChapterMode(BaseModel):
 
 class ContinueMode(BaseModel):
     """续写模式参数"""
-    previous_chapter_id: int = Field(..., description="上一章ID")
-    transition: str = Field(default="immediate", description="衔接方式")
+    previous_chapter_id: int = Field(..., gt=0, description="上一章ID")
+    transition: TransitionType = Field(default=TransitionType.IMMEDIATE, description="衔接方式")
     plot_direction: str = Field(..., description="本章情节方向")
     conflict_point: Optional[str] = Field(None, description="核心冲突点")
 
@@ -68,8 +68,8 @@ class ContextAnalysisResponse(BaseModel):
 class ChapterGenerateRequest(BaseModel):
     """统一生成请求"""
     mode: GenerationMode = Field(default=GenerationMode.STANDARD)
-    project_id: int
-    chapter_number: int
+    project_id: int = Field(..., gt=0, description="项目ID")
+    chapter_number: int = Field(..., gt=0, description="章节号")
     first_chapter_mode: Optional[FirstChapterMode] = None
     continue_mode: Optional[ContinueMode] = None
     suggested_context: Optional[dict] = Field(
@@ -84,6 +84,14 @@ class ChapterGenerateRequest(BaseModel):
     style_intensity: Optional[int] = Field(default=70, ge=0, le=100, description="风格强度")
     pov_character_id: Optional[int] = Field(None, description="叙事视角人物ID")
     temperature: Optional[float] = Field(default=0.8, ge=0.1, le=1.5, description="AI创造性参数")
+
+    @field_validator('continue_mode')
+    @classmethod
+    def check_mutual_exclusivity(cls, v, info):
+        """验证first_chapter_mode和continue_mode互斥"""
+        if v is not None and info.data.get('first_chapter_mode') is not None:
+            raise ValueError('不能同时设置first_chapter_mode和continue_mode')
+        return v
 
 
 class GeneratedVersion(BaseModel):
