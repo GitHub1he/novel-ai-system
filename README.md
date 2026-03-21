@@ -104,11 +104,19 @@ novel-ai-system/
 - ✅ 世界观设定基础框架
 - ✅ 性能优化（列表不加载大字段）
 
+## 智能续写功能
+
+- ✅ AI智能续写 - 基于前文内容和项目设定智能生成章节
+- ✅ AI上下文分析 - 自动分析情节需求，推荐相关人物、设定、情节节点
+- ✅ 多版本生成 - 生成2-3个版本供选择
+- ✅ 实时进度反馈 - WebSocket推送生成进度
+- ✅ 三种控制模式 - 简单、标准、高级
+
 ### 开发中
-- 🚧 AI内容生成
 - 🚧 富文本编辑器增强
 - 🚧 人物关系管理
 - 🚧 世界观设定完善
+- 🚧 情节节点管理
 
 ### 规划中
 - ⏳ 版本管理
@@ -180,7 +188,10 @@ npm run build
 - `GET /api/projects/` - 获取项目列表
 - `POST /api/projects/` - 创建项目
 - `POST /api/chapters/` - 创建章节
-- `POST /api/chapters/{id}/generate` - AI生成内容
+- `POST /api/chapters/generate` - 智能生成章节（支持首章/续写）
+- `POST /api/chapters/{id}/select-version` - 选择生成的版本
+- `GET /api/chapters/{id}/drafts` - 获取生成版本列表
+- `GET /api/chapters/analyze-context` - AI分析上下文需求
 
 ## 贡献指南
 

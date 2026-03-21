@@ -134,6 +134,103 @@ User (用户)
 - **Character**: Name, role type (protagonist/antagonist/supporting/minor), character arc (initial→turning point→final), voice style, sample dialogue
 - **WorldSetting**: Type (era/region/rules/culture/power system/location/faction/item/event), core rule flag, related entities
 
+## Intelligent Continuation Implementation Details
+
+### Database Schema
+
+#### ContentGenerationDrafts Table
+The system uses a dedicated table to store AI-generated content drafts:
+
+```sql
+CREATE TABLE content_generation_drafts (
+    id SERIAL PRIMARY KEY,
+    chapter_id INTEGER REFERENCES chapters(id),
+    version_id VARCHAR(36) NOT NULL,
+    content TEXT NOT NULL,
+    word_count INTEGER NOT NULL,
+    summary TEXT,
+    generation_mode VARCHAR(20) DEFAULT 'standard',
+    temperature NUMERIC(3,2),
+    is_selected BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### AI Service Methods
+
+#### Chapter Generation with Context Analysis
+The `AIService` class implements intelligent chapter generation:
+
+1. **Context Analysis** (`analyze_context_requirements`):
+   - Analyzes previous chapter context (last 800 characters)
+   - AI recommends relevant characters, world settings, and plot nodes
+   - Returns validated suggestions based on project data
+
+2. **Multi-Version Generation** (`generate_chapter_versions_async`):
+   - Supports both first chapter and continuation modes
+   - Generates 2-3 versions with varying temperatures
+   - Sends WebSocket progress updates during generation
+   - Saves drafts to `content_generation_drafts` table
+
+3. **System Prompt Building**:
+   - Constructs dynamic prompts based on project context
+   - Includes character personalities, world rules, and style preferences
+   - Supports different generation modes (simple/standard/advanced)
+
+### WebSocket Implementation
+
+Real-time progress feedback via WebSocket:
+
+```python
+# WebSocket Endpoint
+@app.websocket("/ws/chapters/generate/{task_id}")
+async def websocket_chapters_generate(websocket: WebSocket, task_id: str):
+    await websocket_endpoint(websocket, task_id)
+
+# Progress Events
+- "started" - Generation started
+- "version_started" - Version generation started
+- "completed" - Generation completed
+- "error" - Generation failed
+```
+
+### API Endpoints for Intelligent Continuation
+
+#### Unified Chapter Generation
+- `POST /api/chapters/generate` - Smart chapter generation with context analysis
+  - Supports both first chapter and continuation modes
+  - Returns multiple versions (2-3)
+  - Includes recommended context entities
+  - Returns task_id for WebSocket connection
+
+#### Version Management
+- `POST /api/chapters/{id}/select-version` - Apply a specific version to the chapter
+- `GET /api/chapters/{id}/drafts` - List all generated versions for a chapter
+
+#### Context Analysis
+- `GET /api/chapters/analyze-context` - Get AI-recommended characters, settings, and plot nodes
+
+### Frontend Implementation
+
+#### Key Components
+- `ProjectDetail.tsx` - Main project state management
+- Chapter generation modal with real-time progress
+- Version selection interface
+- Context recommendation display
+
+#### State Management
+```typescript
+interface ChapterState {
+  project: Project | null;
+  chapters: Chapter[];
+  currentChapter: Chapter | null;
+  loadingChapter: boolean;
+  generatingChapter: boolean;
+  drafts: DraftVersion[];
+}
+```
+
 ## API Endpoints Reference
 
 ### Authentication
@@ -152,7 +249,14 @@ User (用户)
 - `GET /api/chapters/{id}` - Get chapter details (includes `content`)
 - `POST /api/chapters/` - Create chapter (auto-calculates chapter_number)
 - `PUT /api/chapters/{id}` - Update chapter
-- `POST /api/chapters/{id}/generate` - AI generate content
+- `POST /api/chapters/{id}/generate` - AI generate content (legacy)
+- `POST /api/chapters/generate` - **Smart chapter generation** with context analysis
+  - Supports first chapter and continuation modes
+  - Generates 2-3 versions
+  - Returns task_id for WebSocket progress tracking
+- `POST /api/chapters/{id}/select-version` - Select and apply a generated version
+- `GET /api/chapters/{id}/drafts` - List all generated versions for a chapter
+- `GET /api/chapters/analyze-context` - Get AI-recommended context entities
 
 ### Characters
 - `GET /api/characters/list/{project_id}` - List characters
