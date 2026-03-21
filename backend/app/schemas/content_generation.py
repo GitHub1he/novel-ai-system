@@ -1,243 +1,121 @@
-"""
-内容生成请求和响应Schema
-
-该模块定义了内容生成相关的所有Pydantic模型，包括：
-- 内容生成请求
-- 版本选择请求
-- 草稿响应
-- 批量操作响应
-"""
-from pydantic import BaseModel, Field, field_validator, ConfigDict
-from datetime import datetime
+from pydantic import BaseModel, Field
 from typing import Optional, List
-from decimal import Decimal
+from enum import Enum
 
 
-class ContentGenerationRequest(BaseModel):
-    """
-    内容生成请求模型
-
-    用于请求AI生成章节内容，支持可选参数配置生成行为。
-
-    Attributes:
-        chapter_id: 章节ID（必填）
-        num_versions: 生成版本数量，默认1，最多5个版本
-        generation_mode: 生成模式（simple/standard/advanced）
-        temperature: 温度参数，控制创造性，范围0.0-1.0
-        override_context: 是否覆盖默认上下文（自定义角色、世界观等）
-        custom_context: 自定义上下文（当override_context=True时使用）
-
-    Example:
-        ```python
-        request = ContentGenerationRequest(
-            chapter_id=1,
-            num_versions=3,
-            generation_mode="advanced",
-            temperature=0.85
-        )
-        ```
-    """
-    chapter_id: int = Field(..., description="章节ID", gt=0)
-    num_versions: int = Field(default=1, ge=1, le=5, description="生成版本数量")
-    generation_mode: Optional[str] = Field(
-        default="standard",
-        description="生成模式: simple(简单), standard(标准), advanced(高级)"
-    )
-    temperature: Optional[float] = Field(
-        default=0.7,
-        ge=0.0,
-        le=1.0,
-        description="温度参数，控制创造性，0.0-1.0"
-    )
-    override_context: bool = Field(default=False, description="是否覆盖默认上下文")
-    custom_context: Optional[dict] = Field(default=None, description="自定义上下文")
-
-    @field_validator('generation_mode')
-    @classmethod
-    def validate_generation_mode(cls, v: Optional[str]) -> Optional[str]:
-        """验证生成模式是否合法"""
-        if v is None:
-            return v
-        valid_modes = ["simple", "standard", "advanced"]
-        if v not in valid_modes:
-            raise ValueError(f'生成模式必须是以下之一: {", ".join(valid_modes)}')
-        return v
-
-    @field_validator('custom_context')
-    @classmethod
-    def validate_custom_context(cls, v: Optional[dict], info) -> Optional[dict]:
-        """验证自定义上下文"""
-        if v is not None and not info.data.get('override_context', False):
-            raise ValueError('设置custom_context需要将override_context设为True')
-        return v
-
-    @field_validator('temperature')
-    @classmethod
-    def validate_temperature(cls, v: Optional[float]) -> Optional[float]:
-        """验证温度参数精度"""
-        if v is not None:
-            # 保留两位小数
-            return round(v, 2)
-        return v
+class GenerationMode(str, Enum):
+    """生成模式"""
+    SIMPLE = "simple"
+    STANDARD = "standard"
+    ADVANCED = "advanced"
 
 
-class VersionSelectionRequest(BaseModel):
-    """
-    版本选择请求模型
-
-    用于用户选择要发布的草稿版本。
-
-    Attributes:
-        draft_id: 草稿ID（必填）
-        apply_to_chapter: 是否将选中的草稿应用到章节内容（默认True）
-
-    Example:
-        ```python
-        request = VersionSelectionRequest(
-            draft_id=5,
-            apply_to_chapter=True
-        )
-        ```
-    """
-    draft_id: int = Field(..., description="草稿ID", gt=0)
-    apply_to_chapter: bool = Field(default=True, description="是否应用到章节内容")
+class TransitionType(str, Enum):
+    """衔接方式"""
+    IMMEDIATE = "immediate"
+    TIME_SKIP = "time_skip"
+    LOCATION_CHANGE = "location_change"
+    SUMMARY = "summary"
 
 
-class ContentGenerationDraftResponse(BaseModel):
-    """
-    内容生成草稿响应模型
+class FirstChapterMode(BaseModel):
+    """首章生成模式参数"""
+    opening_scene: str = Field(..., description="开篇场景描述")
+    key_elements: List[str] = Field(default_factory=list, description="核心要素列表")
+    tone: Optional[str] = Field(None, description="开篇基调（如：悬疑、轻松、史诗）")
 
-    用于返回单个草稿的详细信息。
 
-    Attributes:
-        id: 草稿ID
-        chapter_id: 所属章节ID
-        version_id: 版本标识（如v1, v2）
-        content: 生成的完整内容
-        word_count: 字数统计
-        summary: 版本摘要
-        is_selected: 是否被用户选中
-        generation_mode: 生成模式
-        temperature: 温度参数
-        created_at: 创建时间
+class ContinueMode(BaseModel):
+    """续写模式参数"""
+    previous_chapter_id: int = Field(..., description="上一章ID")
+    transition: str = Field(default="immediate", description="衔接方式")
+    plot_direction: str = Field(..., description="本章情节方向")
+    conflict_point: Optional[str] = Field(None, description="核心冲突点")
 
-    Example:
-        ```python
-        response = ContentGenerationDraftResponse(
-            id=1,
-            chapter_id=5,
-            version_id="v1",
-            content="这是生成的内容...",
-            word_count=1500,
-            summary="这是摘要",
-            is_selected=False,
-            generation_mode="advanced",
-            temperature=0.85,
-            created_at=datetime.now()
-        )
-        ```
-    """
-    model_config = ConfigDict(from_attributes=True)
 
+class SuggestedCharacter(BaseModel):
+    """AI推荐的人物"""
     id: int
-    chapter_id: int
+    name: str
+    role: str
+    reason: str = Field(..., description="推荐理由")
+
+
+class SuggestedWorldSetting(BaseModel):
+    """AI推荐的世界观设定"""
+    id: int
+    name: str
+    type: str
+    reason: str = Field(..., description="推荐理由")
+
+
+class SuggestedPlotNode(BaseModel):
+    """AI推荐的情节节点"""
+    id: int
+    name: str
+    type: str
+    reason: str = Field(..., description="推荐理由")
+
+
+class ContextAnalysisResponse(BaseModel):
+    """上下文分析响应"""
+    suggested_characters: List[SuggestedCharacter] = Field(default_factory=list)
+    suggested_world_settings: List[SuggestedWorldSetting] = Field(default_factory=list)
+    suggested_plot_nodes: List[SuggestedPlotNode] = Field(default_factory=list)
+    summary: str = Field(..., description="分析摘要")
+
+
+class ChapterGenerateRequest(BaseModel):
+    """统一生成请求"""
+    mode: GenerationMode = Field(default=GenerationMode.STANDARD)
+    project_id: int
+    chapter_number: int
+    first_chapter_mode: Optional[FirstChapterMode] = None
+    continue_mode: Optional[ContinueMode] = None
+    suggested_context: Optional[dict] = Field(
+        default=None,
+        description="AI分析的上下文建议，包含characters, world_settings, plot_nodes"
+    )
+    featured_characters: Optional[List[int]] = Field(default_factory=list, description="登场人物ID列表")
+    related_world_settings: Optional[List[int]] = Field(default_factory=list, description="相关世界观设定ID列表")
+    related_plot_nodes: Optional[List[int]] = Field(default_factory=list, description="相关情节节点ID列表")
+    word_count: int = Field(default=2000, ge=500, le=10000, description="目标字数")
+    versions: int = Field(default=3, ge=1, le=5, description="生成版本数量")
+    style_intensity: Optional[int] = Field(default=70, ge=0, le=100, description="风格强度")
+    pov_character_id: Optional[int] = Field(None, description="叙事视角人物ID")
+    temperature: Optional[float] = Field(default=0.8, ge=0.1, le=1.5, description="AI创造性参数")
+
+
+class GeneratedVersion(BaseModel):
+    """生成的版本信息"""
     version_id: str
     content: str
     word_count: int
-    summary: Optional[str] = None
-    is_selected: bool = False
-    generation_mode: Optional[str] = None
-    temperature: Optional[Decimal] = None
-    created_at: datetime
+    summary: str
 
 
-class ContentGenerationBatchResponse(BaseModel):
-    """
-    批量生成响应模型
-
-    用于返回批量生成任务的结果。
-
-    Attributes:
-        task_id: 任务ID
-        chapter_id: 章节ID
-        total_versions: 总版本数
-        completed_versions: 已完成版本数
-        status: 任务状态（pending/in_progress/completed/failed）
-        drafts: 已生成的草稿列表
-        error: 错误信息（如果失败）
-        created_at: 任务创建时间
-
-    Example:
-        ```python
-        response = ContentGenerationBatchResponse(
-            task_id="task_123",
-            chapter_id=5,
-            total_versions=3,
-            completed_versions=2,
-            status="in_progress",
-            drafts=[draft1, draft2],
-            created_at=datetime.now()
-        )
-        ```
-    """
-    task_id: str
-    chapter_id: int
-    total_versions: int
-    completed_versions: int
-    status: str
-    drafts: List[ContentGenerationDraftResponse] = Field(default_factory=list)
-    error: Optional[str] = None
-    created_at: datetime
+class ContextUsed(BaseModel):
+    """使用的上下文信息"""
+    previous_chapter: Optional[dict] = None
+    characters: List[str] = Field(default_factory=list)
+    world_settings: List[str] = Field(default_factory=list)
+    plot_nodes: List[str] = Field(default_factory=list)
 
 
-class DraftListResponse(BaseModel):
-    """
-    草稿列表响应模型
-
-    用于返回某个章节的所有草稿版本。
-
-    Attributes:
-        chapter_id: 章节ID
-        drafts: 草稿列表
-        total: 草稿总数
-        selected_draft_id: 当前选中的草稿ID（如果有）
-
-    Example:
-        ```python
-        response = DraftListResponse(
-            chapter_id=5,
-            drafts=[draft1, draft2, draft3],
-            total=3,
-            selected_draft_id=2
-        )
-        ```
-    """
-    chapter_id: int
-    drafts: List[ContentGenerationDraftResponse]
-    total: int
-    selected_draft_id: Optional[int] = None
+class ChapterGenerateResponse(BaseModel):
+    """统一生成响应"""
+    code: int = Field(default=200)
+    message: str = Field(default="生成成功")
+    data: dict = Field(..., description="包含chapter_id, versions, context_used")
 
 
-class DraftComparisonResponse(BaseModel):
-    """
-    草稿对比响应模型
+class SelectVersionRequest(BaseModel):
+    """选择版本请求"""
+    version_id: str = Field(..., description="要使用的版本ID")
+    edited_content: Optional[str] = Field(None, description="用户编辑后的内容（可选）")
 
-    用于返回多个草稿的对比信息，帮助用户选择。
 
-    Attributes:
-        chapter_id: 章节ID
-        drafts: 草稿列表（包含摘要和统计信息）
-        comparison: 对比摘要（突出各版本差异）
-
-    Example:
-        ```python
-        response = DraftComparisonResponse(
-            chapter_id=5,
-            drafts=[draft1, draft2],
-            comparison="v1更注重情感描写，v2情节推进更快"
-        )
-        ```
-    """
-    chapter_id: int
-    drafts: List[ContentGenerationDraftResponse]
-    comparison: Optional[str] = None
+class ExtractEntitiesResponse(BaseModel):
+    """实体提取响应（第二阶段）"""
+    code: int = Field(default=200)
+    data: dict = Field(..., description="提取的实体信息")

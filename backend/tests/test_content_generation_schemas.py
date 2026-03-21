@@ -2,498 +2,254 @@
 测试内容生成Schema的序列化和反序列化
 
 该测试模块验证：
-- ContentGenerationRequest的验证逻辑
-- VersionSelectionRequest的验证逻辑
-- 所有Response模型的序列化
-- 边界条件和错误处理
+- FirstChapterMode与ChapterGenerateRequest的集成
+- ContinueMode与ChapterGenerateRequest的集成
+- word_count字段验证（500-10000范围）
 """
 import pytest
-from datetime import datetime
-from decimal import Decimal
 from app.schemas.content_generation import (
-    ContentGenerationRequest,
-    VersionSelectionRequest,
-    ContentGenerationDraftResponse,
-    ContentGenerationBatchResponse,
-    DraftListResponse,
-    DraftComparisonResponse,
+    GenerationMode,
+    FirstChapterMode,
+    ContinueMode,
+    ChapterGenerateRequest,
 )
 
 
-class TestContentGenerationRequest:
-    """测试内容生成请求模型"""
+class TestFirstChapterRequest:
+    """测试首章生成请求"""
 
-    def test_valid_minimal_request(self):
-        """测试最小有效请求"""
-        request = ContentGenerationRequest(chapter_id=1)
-        assert request.chapter_id == 1
-        assert request.num_versions == 1  # 默认值
-        assert request.generation_mode == "standard"  # 默认值
-        assert request.temperature == 0.7  # 默认值
-        assert request.override_context is False  # 默认值
-        assert request.custom_context is None  # 默认值
-
-    def test_valid_full_request(self):
-        """测试完整参数请求"""
-        request = ContentGenerationRequest(
-            chapter_id=5,
-            num_versions=3,
-            generation_mode="advanced",
-            temperature=0.85,
-            override_context=True,
-            custom_context={"characters": [1, 2]}
+    def test_first_chapter_request(self):
+        """测试FirstChapterMode与ChapterGenerateRequest"""
+        first_chapter_mode = FirstChapterMode(
+            opening_scene="一个暴风雨之夜，古堡的钟声敲响",
+            key_elements=["悬疑", "神秘", "古老的秘密"],
+            tone="悬疑"
         )
-        assert request.chapter_id == 5
-        assert request.num_versions == 3
-        assert request.generation_mode == "advanced"
-        assert request.temperature == 0.85
-        assert request.override_context is True
-        assert request.custom_context == {"characters": [1, 2]}
 
-    def test_invalid_chapter_id_zero(self):
-        """测试无效的章节ID（0）"""
+        request = ChapterGenerateRequest(
+            mode=GenerationMode.STANDARD,
+            project_id=1,
+            chapter_number=1,
+            first_chapter_mode=first_chapter_mode,
+            word_count=2000,
+            versions=3
+        )
+
+        # 验证基本字段
+        assert request.mode == GenerationMode.STANDARD
+        assert request.project_id == 1
+        assert request.chapter_number == 1
+        assert request.word_count == 2000
+        assert request.versions == 3
+
+        # 验证首章模式字段
+        assert request.first_chapter_mode is not None
+        assert request.first_chapter_mode.opening_scene == "一个暴风雨之夜，古堡的钟声敲响"
+        assert request.first_chapter_mode.key_elements == ["悬疑", "神秘", "古老的秘密"]
+        assert request.first_chapter_mode.tone == "悬疑"
+
+        # 验证continue_mode为None
+        assert request.continue_mode is None
+
+
+class TestContinueChapterRequest:
+    """测试续写章节请求"""
+
+    def test_continue_chapter_request(self):
+        """测试ContinueMode与ChapterGenerateRequest"""
+        continue_mode = ContinueMode(
+            previous_chapter_id=5,
+            transition="time_skip",
+            plot_direction="主角发现了一个重要线索",
+            conflict_point="真相与谎言的冲突"
+        )
+
+        request = ChapterGenerateRequest(
+            mode=GenerationMode.ADVANCED,
+            project_id=2,
+            chapter_number=6,
+            continue_mode=continue_mode,
+            word_count=2500,
+            versions=2,
+            featured_characters=[1, 2, 3],
+            pov_character_id=1
+        )
+
+        # 验证基本字段
+        assert request.mode == GenerationMode.ADVANCED
+        assert request.project_id == 2
+        assert request.chapter_number == 6
+        assert request.word_count == 2500
+        assert request.versions == 2
+
+        # 验证续写模式字段
+        assert request.continue_mode is not None
+        assert request.continue_mode.previous_chapter_id == 5
+        assert request.continue_mode.transition == "time_skip"
+        assert request.continue_mode.plot_direction == "主角发现了一个重要线索"
+        assert request.continue_mode.conflict_point == "真相与谎言的冲突"
+
+        # 验证其他可选字段
+        assert request.featured_characters == [1, 2, 3]
+        assert request.pov_character_id == 1
+
+        # 验证first_chapter_mode为None
+        assert request.first_chapter_mode is None
+
+
+class TestWordCountValidation:
+    """测试字数验证"""
+
+    def test_word_count_validation_minimum_boundary(self):
+        """测试word_count最小边界值（500）"""
+        request = ChapterGenerateRequest(
+            mode=GenerationMode.SIMPLE,
+            project_id=1,
+            chapter_number=1,
+            word_count=500  # 最小有效值
+        )
+        assert request.word_count == 500
+
+    def test_word_count_validation_maximum_boundary(self):
+        """测试word_count最大边界值（10000）"""
+        request = ChapterGenerateRequest(
+            mode=GenerationMode.SIMPLE,
+            project_id=1,
+            chapter_number=1,
+            word_count=10000  # 最大有效值
+        )
+        assert request.word_count == 10000
+
+    def test_word_count_validation_too_small(self):
+        """测试word_count小于500时验证失败"""
         with pytest.raises(ValueError) as exc_info:
-            ContentGenerationRequest(chapter_id=0)
-        assert "greater than 0" in str(exc_info.value)
+            ChapterGenerateRequest(
+                mode=GenerationMode.SIMPLE,
+                project_id=1,
+                chapter_number=1,
+                word_count=499  # 小于最小值
+            )
+        assert "greater than or equal to 500" in str(exc_info.value)
 
-    def test_invalid_chapter_id_negative(self):
-        """测试无效的章节ID（负数）"""
+    def test_word_count_validation_too_large(self):
+        """测试word_count大于10000时验证失败"""
         with pytest.raises(ValueError) as exc_info:
-            ContentGenerationRequest(chapter_id=-1)
-        assert "greater than 0" in str(exc_info.value)
+            ChapterGenerateRequest(
+                mode=GenerationMode.SIMPLE,
+                project_id=1,
+                chapter_number=1,
+                word_count=10001  # 大于最大值
+            )
+        assert "less than or equal to 10000" in str(exc_info.value)
 
-    def test_valid_num_versions_boundaries(self):
-        """测试num_versions的边界值"""
+    def test_word_count_default_value(self):
+        """测试word_count默认值为2000"""
+        request = ChapterGenerateRequest(
+            mode=GenerationMode.STANDARD,
+            project_id=1,
+            chapter_number=1
+        )
+        assert request.word_count == 2000
+
+
+class TestOtherValidations:
+    """测试其他字段验证"""
+
+    def test_versions_validation(self):
+        """测试versions字段验证（1-5范围）"""
         # 最小值
-        request1 = ContentGenerationRequest(chapter_id=1, num_versions=1)
-        assert request1.num_versions == 1
+        request1 = ChapterGenerateRequest(
+            mode=GenerationMode.SIMPLE,
+            project_id=1,
+            chapter_number=1,
+            versions=1
+        )
+        assert request1.versions == 1
 
         # 最大值
-        request2 = ContentGenerationRequest(chapter_id=1, num_versions=5)
-        assert request2.num_versions == 5
-
-    def test_invalid_num_versions_too_small(self):
-        """测试num_versions过小"""
-        with pytest.raises(ValueError) as exc_info:
-            ContentGenerationRequest(chapter_id=1, num_versions=0)
-        assert "greater than or equal to 1" in str(exc_info.value)
-
-    def test_invalid_num_versions_too_large(self):
-        """测试num_versions过大"""
-        with pytest.raises(ValueError) as exc_info:
-            ContentGenerationRequest(chapter_id=1, num_versions=6)
-        assert "less than or equal to 5" in str(exc_info.value)
-
-    def test_valid_generation_modes(self):
-        """测试所有有效的生成模式"""
-        for mode in ["simple", "standard", "advanced"]:
-            request = ContentGenerationRequest(
-                chapter_id=1,
-                generation_mode=mode
-            )
-            assert request.generation_mode == mode
-
-    def test_invalid_generation_mode(self):
-        """测试无效的生成模式"""
-        with pytest.raises(ValueError) as exc_info:
-            ContentGenerationRequest(chapter_id=1, generation_mode="invalid")
-        assert "生成模式必须是以下之一" in str(exc_info.value)
-
-    def test_valid_temperature_boundaries(self):
-        """测试temperature的边界值"""
-        # 最小值
-        request1 = ContentGenerationRequest(chapter_id=1, temperature=0.0)
-        assert request1.temperature == 0.0
-
-        # 最大值
-        request2 = ContentGenerationRequest(chapter_id=1, temperature=1.0)
-        assert request2.temperature == 1.0
-
-        # 中间值
-        request3 = ContentGenerationRequest(chapter_id=1, temperature=0.5)
-        assert request3.temperature == 0.5
-
-    def test_invalid_temperature_too_small(self):
-        """测试temperature过小"""
-        with pytest.raises(ValueError) as exc_info:
-            ContentGenerationRequest(chapter_id=1, temperature=-0.1)
-        assert "greater than or equal to 0" in str(exc_info.value)
-
-    def test_invalid_temperature_too_large(self):
-        """测试temperature过大"""
-        with pytest.raises(ValueError) as exc_info:
-            ContentGenerationRequest(chapter_id=1, temperature=1.1)
-        assert "less than or equal to 1" in str(exc_info.value)
-
-    def test_temperature_rounding(self):
-        """测试temperature精度舍入"""
-        request = ContentGenerationRequest(chapter_id=1, temperature=0.856)
-        assert request.temperature == 0.86
-
-    def test_custom_context_without_override(self):
-        """测试在override_context=False时设置custom_context"""
-        with pytest.raises(ValueError) as exc_info:
-            ContentGenerationRequest(
-                chapter_id=1,
-                override_context=False,
-                custom_context={"test": "value"}
-            )
-        assert "override_context设为True" in str(exc_info.value)
-
-    def test_custom_context_with_override(self):
-        """测试在override_context=True时设置custom_context"""
-        request = ContentGenerationRequest(
-            chapter_id=1,
-            override_context=True,
-            custom_context={"characters": [1, 2, 3]}
+        request2 = ChapterGenerateRequest(
+            mode=GenerationMode.SIMPLE,
+            project_id=1,
+            chapter_number=1,
+            versions=5
         )
-        assert request.custom_context == {"characters": [1, 2, 3]}
+        assert request2.versions == 5
 
-    def test_none_generation_mode(self):
-        """测试generation_mode可以为None"""
-        request = ContentGenerationRequest(
-            chapter_id=1,
-            generation_mode=None
+        # 默认值
+        request3 = ChapterGenerateRequest(
+            mode=GenerationMode.SIMPLE,
+            project_id=1,
+            chapter_number=1
         )
-        assert request.generation_mode is None
+        assert request3.versions == 3
 
-    def test_none_temperature(self):
-        """测试temperature可以为None"""
-        request = ContentGenerationRequest(
-            chapter_id=1,
-            temperature=None
+    def test_style_intensity_validation(self):
+        """测试style_intensity字段验证（0-100范围）"""
+        request = ChapterGenerateRequest(
+            mode=GenerationMode.SIMPLE,
+            project_id=1,
+            chapter_number=1,
+            style_intensity=85
         )
-        assert request.temperature is None
+        assert request.style_intensity == 85
 
-
-class TestVersionSelectionRequest:
-    """测试版本选择请求模型"""
-
-    def test_valid_request(self):
-        """测试有效请求"""
-        request = VersionSelectionRequest(draft_id=5)
-        assert request.draft_id == 5
-        assert request.apply_to_chapter is True  # 默认值
-
-    def test_valid_request_with_apply_false(self):
-        """测试apply_to_chapter为False"""
-        request = VersionSelectionRequest(
-            draft_id=10,
-            apply_to_chapter=False
+    def test_temperature_validation(self):
+        """测试temperature字段验证（0.1-1.5范围）"""
+        request = ChapterGenerateRequest(
+            mode=GenerationMode.SIMPLE,
+            project_id=1,
+            chapter_number=1,
+            temperature=1.2
         )
-        assert request.draft_id == 10
-        assert request.apply_to_chapter is False
+        assert request.temperature == 1.2
 
-    def test_invalid_draft_id_zero(self):
-        """测试无效的draft_id（0）"""
-        with pytest.raises(ValueError) as exc_info:
-            VersionSelectionRequest(draft_id=0)
-        assert "greater than 0" in str(exc_info.value)
-
-    def test_invalid_draft_id_negative(self):
-        """测试无效的draft_id（负数）"""
-        with pytest.raises(ValueError) as exc_info:
-            VersionSelectionRequest(draft_id=-1)
-        assert "greater than 0" in str(exc_info.value)
-
-
-class TestContentGenerationDraftResponse:
-    """测试草稿响应模型"""
-
-    def test_valid_response(self):
-        """测试有效响应"""
-        now = datetime.now()
-        response = ContentGenerationDraftResponse(
-            id=1,
-            chapter_id=5,
-            version_id="v1",
-            content="这是生成的内容",
-            word_count=8,
-            summary="摘要",
-            is_selected=False,
-            generation_mode="advanced",
-            temperature=Decimal("0.85"),
-            created_at=now
+    def test_optional_lists_default_to_empty(self):
+        """测试可选列表字段默认为空列表"""
+        request = ChapterGenerateRequest(
+            mode=GenerationMode.SIMPLE,
+            project_id=1,
+            chapter_number=1
         )
-        assert response.id == 1
-        assert response.chapter_id == 5
-        assert response.version_id == "v1"
-        assert response.content == "这是生成的内容"
-        assert response.word_count == 8
-        assert response.summary == "摘要"
-        assert response.is_selected is False
-        assert response.generation_mode == "advanced"
-        assert response.temperature == Decimal("0.85")
-        assert response.created_at == now
+        assert request.featured_characters == []
+        assert request.related_world_settings == []
+        assert request.related_plot_nodes == []
 
-    def test_response_with_optional_fields_none(self):
-        """测试可选字段为None"""
-        now = datetime.now()
-        response = ContentGenerationDraftResponse(
-            id=1,
-            chapter_id=5,
-            version_id="v1",
-            content="内容",
-            word_count=2,
-            created_at=now
+    def test_full_request_with_all_fields(self):
+        """测试包含所有字段的完整请求"""
+        first_chapter_mode = FirstChapterMode(
+            opening_scene="故事开始",
+            key_elements=["要素1", "要素2"],
+            tone="史诗"
         )
-        assert response.summary is None
-        assert response.is_selected is False  # 默认值
-        assert response.generation_mode is None
-        assert response.temperature is None
 
-    def test_response_serialization(self):
-        """测试响应序列化"""
-        now = datetime.now()
-        response = ContentGenerationDraftResponse(
-            id=1,
-            chapter_id=5,
-            version_id="v1",
-            content="内容",
-            word_count=2,
-            created_at=now
+        request = ChapterGenerateRequest(
+            mode=GenerationMode.ADVANCED,
+            project_id=1,
+            chapter_number=1,
+            first_chapter_mode=first_chapter_mode,
+            suggested_context={
+                "characters": [1, 2],
+                "world_settings": [3],
+                "plot_nodes": [4, 5]
+            },
+            featured_characters=[1, 2, 3],
+            related_world_settings=[10, 20],
+            related_plot_nodes=[30, 40, 50],
+            word_count=3000,
+            versions=3,
+            style_intensity=80,
+            pov_character_id=1,
+            temperature=0.9
         )
-        # 转换为字典（模拟JSON序列化）
-        data = response.model_dump()
-        assert data["id"] == 1
-        assert data["chapter_id"] == 5
-        assert data["version_id"] == "v1"
-        assert data["content"] == "内容"
-        assert data["word_count"] == 2
-        assert data["created_at"] == now
 
-
-class TestContentGenerationBatchResponse:
-    """测试批量生成响应模型"""
-
-    def test_valid_response(self):
-        """测试有效响应"""
-        now = datetime.now()
-        draft = ContentGenerationDraftResponse(
-            id=1,
-            chapter_id=5,
-            version_id="v1",
-            content="内容",
-            word_count=2,
-            created_at=now
-        )
-        response = ContentGenerationBatchResponse(
-            task_id="task_123",
-            chapter_id=5,
-            total_versions=3,
-            completed_versions=1,
-            status="in_progress",
-            drafts=[draft],
-            created_at=now
-        )
-        assert response.task_id == "task_123"
-        assert response.chapter_id == 5
-        assert response.total_versions == 3
-        assert response.completed_versions == 1
-        assert response.status == "in_progress"
-        assert len(response.drafts) == 1
-        assert response.error is None
-
-    def test_response_with_error(self):
-        """测试包含错误的响应"""
-        now = datetime.now()
-        response = ContentGenerationBatchResponse(
-            task_id="task_456",
-            chapter_id=5,
-            total_versions=3,
-            completed_versions=0,
-            status="failed",
-            error="API调用失败",
-            created_at=now
-        )
-        assert response.status == "failed"
-        assert response.error == "API调用失败"
-        assert len(response.drafts) == 0
-
-    def test_response_empty_drafts_list(self):
-        """测试空草稿列表"""
-        now = datetime.now()
-        response = ContentGenerationBatchResponse(
-            task_id="task_789",
-            chapter_id=5,
-            total_versions=2,
-            completed_versions=0,
-            status="pending",
-            created_at=now
-        )
-        assert len(response.drafts) == 0
-        assert response.completed_versions == 0
-
-
-class TestDraftListResponse:
-    """测试草稿列表响应模型"""
-
-    def test_valid_response(self):
-        """测试有效响应"""
-        now = datetime.now()
-        draft1 = ContentGenerationDraftResponse(
-            id=1,
-            chapter_id=5,
-            version_id="v1",
-            content="内容1",
-            word_count=2,
-            is_selected=True,
-            created_at=now
-        )
-        draft2 = ContentGenerationDraftResponse(
-            id=2,
-            chapter_id=5,
-            version_id="v2",
-            content="内容2",
-            word_count=2,
-            is_selected=False,
-            created_at=now
-        )
-        response = DraftListResponse(
-            chapter_id=5,
-            drafts=[draft1, draft2],
-            total=2,
-            selected_draft_id=1
-        )
-        assert response.chapter_id == 5
-        assert len(response.drafts) == 2
-        assert response.total == 2
-        assert response.selected_draft_id == 1
-
-    def test_response_without_selection(self):
-        """测试没有选中草稿的响应"""
-        now = datetime.now()
-        draft = ContentGenerationDraftResponse(
-            id=1,
-            chapter_id=5,
-            version_id="v1",
-            content="内容",
-            word_count=2,
-            is_selected=False,
-            created_at=now
-        )
-        response = DraftListResponse(
-            chapter_id=5,
-            drafts=[draft],
-            total=1
-        )
-        assert response.selected_draft_id is None
-
-    def test_response_empty_list(self):
-        """测试空列表响应"""
-        response = DraftListResponse(
-            chapter_id=5,
-            drafts=[],
-            total=0
-        )
-        assert len(response.drafts) == 0
-        assert response.total == 0
-
-
-class TestDraftComparisonResponse:
-    """测试草稿对比响应模型"""
-
-    def test_valid_response(self):
-        """测试有效响应"""
-        now = datetime.now()
-        draft1 = ContentGenerationDraftResponse(
-            id=1,
-            chapter_id=5,
-            version_id="v1",
-            content="内容1",
-            word_count=2,
-            created_at=now
-        )
-        draft2 = ContentGenerationDraftResponse(
-            id=2,
-            chapter_id=5,
-            version_id="v2",
-            content="内容2",
-            word_count=2,
-            created_at=now
-        )
-        response = DraftComparisonResponse(
-            chapter_id=5,
-            drafts=[draft1, draft2],
-            comparison="v1更注重情感，v2更注重情节"
-        )
-        assert response.chapter_id == 5
-        assert len(response.drafts) == 2
-        assert response.comparison == "v1更注重情感，v2更注重情节"
-
-    def test_response_without_comparison(self):
-        """测试没有对比摘要的响应"""
-        now = datetime.now()
-        draft = ContentGenerationDraftResponse(
-            id=1,
-            chapter_id=5,
-            version_id="v1",
-            content="内容",
-            word_count=2,
-            created_at=now
-        )
-        response = DraftComparisonResponse(
-            chapter_id=5,
-            drafts=[draft]
-        )
-        assert response.comparison is None
-
-
-class TestSchemaIntegration:
-    """测试Schema集成和序列化"""
-
-    def test_request_to_dict(self):
-        """测试请求转换为字典"""
-        request = ContentGenerationRequest(
-            chapter_id=5,
-            num_versions=3,
-            generation_mode="advanced",
-            temperature=0.85
-        )
-        data = request.model_dump()
-        assert data["chapter_id"] == 5
-        assert data["num_versions"] == 3
-        assert data["generation_mode"] == "advanced"
-        assert data["temperature"] == 0.85
-
-    def test_response_to_json(self):
-        """测试响应JSON序列化"""
-        now = datetime.now()
-        draft = ContentGenerationDraftResponse(
-            id=1,
-            chapter_id=5,
-            version_id="v1",
-            content="内容",
-            word_count=2,
-            created_at=now
-        )
-        # model_dump_json会处理datetime等类型
-        json_str = draft.model_dump_json()
-        assert '"id":1' in json_str
-        assert '"chapter_id":5' in json_str
-        assert '"version_id":"v1"' in json_str
-
-    def test_nested_response_serialization(self):
-        """测试嵌套响应序列化"""
-        now = datetime.now()
-        draft = ContentGenerationDraftResponse(
-            id=1,
-            chapter_id=5,
-            version_id="v1",
-            content="内容",
-            word_count=2,
-            created_at=now
-        )
-        batch_response = ContentGenerationBatchResponse(
-            task_id="task_123",
-            chapter_id=5,
-            total_versions=1,
-            completed_versions=1,
-            status="completed",
-            drafts=[draft],
-            created_at=now
-        )
-        data = batch_response.model_dump()
-        assert len(data["drafts"]) == 1
-        assert data["drafts"][0]["id"] == 1
-        assert data["drafts"][0]["version_id"] == "v1"
+        assert request.mode == GenerationMode.ADVANCED
+        assert request.project_id == 1
+        assert request.chapter_number == 1
+        assert request.word_count == 3000
+        assert request.versions == 3
+        assert request.style_intensity == 80
+        assert request.pov_character_id == 1
+        assert request.temperature == 0.9
+        assert len(request.featured_characters) == 3
+        assert len(request.related_world_settings) == 2
+        assert len(request.related_plot_nodes) == 3
