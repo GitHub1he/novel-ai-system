@@ -19,6 +19,7 @@ from app.core.exception_handler import (
     general_exception_handler
 )
 from app.api import auth, projects, chapters, characters, world_settings, plot_nodes, context_analysis
+from app.core.websocket_manager import websocket_endpoint, send_websocket_message
 
 # 创建数据库表
 Base.metadata.create_all(bind=engine)
@@ -86,6 +87,12 @@ def read_root():
 def health_check():
     """健康检查"""
     return {"status": "healthy"}
+
+
+@app.websocket("/ws/chapters/generate/{task_id}")
+async def websocket_chapters_generate(websocket: WebSocket, task_id: str):
+    """WebSocket端点，用于推送章节生成进度"""
+    await websocket_endpoint(websocket, task_id)
 
 
 if __name__ == "__main__":

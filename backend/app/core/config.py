@@ -26,7 +26,16 @@ class Settings(BaseSettings):
     AI_MODEL: str = "GLM-4.7-Flash"  # 默认使用GLM-4 Flash（速度快、成本低）
 
     # CORS配置
-    BACKEND_CORS_ORIGINS: list = ["http://localhost:3000", "http://localhost:5173"]
+    BACKEND_CORS_ORIGINS: list = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "ws://localhost:3000",
+        "ws://localhost:5173",
+        "ws://127.0.0.1:5173",
+        "http://localhost:8000",
+        "ws://localhost:8000"
+    ]
 
     class Config:
         env_file = ".env"

@@ -9,6 +9,7 @@ from app.models.chapter import Chapter
 from typing import List, Dict, Optional
 import json
 import uuid
+import asyncio
 
 
 class AIService:
@@ -469,7 +470,7 @@ class AIService:
 
     def generate_chapter_versions(self, request: dict, db: SessionLocal) -> tuple[List[Dict], Dict]:
         """
-        生成多个版本的章节内容
+        生成多个版本的章节内容（同步版本）
 
         Args:
             request: ChapterGenerateRequest字典格式
@@ -523,6 +524,115 @@ class AIService:
 
             except Exception as e:
                 # 如果某个版本生成失败，创建空版本
+                versions.append({
+                    "version_id": str(uuid.uuid4()),
+                    "content": f"生成失败: {str(e)}",
+                    "word_count": 0,
+                    "summary": "生成失败"
+                })
+
+        return versions, context_used
+
+    async def generate_chapter_versions_async(
+        self,
+        request: dict,
+        db: SessionLocal,
+        task_id: str
+    ) -> tuple[List[Dict], Dict]:
+        """
+        异步生成多个版本的章节内容，支持进度推送
+
+        Args:
+            request: ChapterGenerateRequest字典格式
+            db: 数据库会话
+            task_id: 任务ID，用于WebSocket推送
+
+        Returns:
+            tuple: (版本列表, 使用的上下文字典)
+        """
+        from app.schemas.content_generation import FirstChapterMode, ContinueMode
+
+        if not self.client:
+            raise ValueError("AI服务未配置，请设置OPENAI_API_KEY")
+
+        # 构建生成上下文
+        context_str, context_used = self._build_generation_context(request, db)
+
+        # 生成多个版本
+        versions = []
+        base_temperature = request.get('temperature', 0.8)
+        version_count = min(request.get('versions', 3), 3)  # 最多3个版本
+
+        # 发送版本开始事件
+        await send_websocket_message(task_id, "version_started", {
+            "message": f"开始生成第1个版本",
+            "current_version": 1,
+            "total_versions": version_count
+        })
+
+        for i in range(version_count):
+            version_number = i + 1
+            temperature = base_temperature + (i * 0.05)  # 温度递增：0.8, 0.85, 0.9
+
+            # 发送版本生成开始事件
+            progress = (i / version_count) * 100
+            await send_websocket_message(task_id, "version_started", {
+                "message": f"开始生成第{version_number}个版本",
+                "version_number": version_number,
+                "total_versions": version_count,
+                "progress": progress,
+                "temperature": temperature
+            })
+
+            # 生成系统提示
+            system_prompt = self._build_system_prompt(request, context_str)
+
+            # 生成用户提示
+            user_prompt = self._build_user_prompt(request)
+
+            try:
+                # 模拟异步生成（实际API调用是同步的，这里用asyncio.sleep来模拟）
+                await asyncio.sleep(0.5)  # 模拟生成耗时
+
+                response = self.client.chat.completions.create(
+                    model=settings.AI_MODEL,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    temperature=temperature,
+                    max_tokens=request.get('word_count', 2000) * 2
+                )
+
+                content = response.choices[0].message.content
+                summary = self._generate_version_summary(content)
+
+                # 发送版本生成完成事件
+                version_progress = ((i + 1) / version_count) * 100
+                await send_websocket_message(task_id, "version_generated", {
+                    "message": f"第{version_number}个版本生成完成",
+                    "version_number": version_number,
+                    "total_versions": version_count,
+                    "progress": version_progress,
+                    "version_id": str(uuid.uuid4()),
+                    "word_count": len(content)
+                })
+
+                versions.append({
+                    "version_id": str(uuid.uuid4()),
+                    "content": content,
+                    "word_count": len(content),
+                    "summary": summary
+                })
+
+            except Exception as e:
+                # 如果某个版本生成失败，创建空版本并发送错误事件
+                await send_websocket_message(task_id, "error", {
+                    "message": f"第{version_number}个版本生成失败: {str(e)}",
+                    "version_number": version_number,
+                    "error": str(e)
+                })
+
                 versions.append({
                     "version_id": str(uuid.uuid4()),
                     "content": f"生成失败: {str(e)}",

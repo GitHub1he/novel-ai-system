@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Optional, List
+import asyncio
+import uuid
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.exception_handler import BusinessException, NotFoundException
@@ -15,6 +17,7 @@ from app.schemas.content_generation import (
     GeneratedVersion, ContextUsed, SelectVersionRequest
 )
 from app.services.ai_service import ai_service
+from app.core.websocket_manager import send_websocket_message
 
 router = APIRouter(prefix="/chapters", tags=["章节管理"])
 
@@ -270,7 +273,7 @@ def generate_chapter_content(
 
 
 @router.post("/generate", summary="统一章节生成")
-def generate_chapter_versions(
+async def generate_chapter_versions(
     request: ChapterGenerateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -307,12 +310,24 @@ def generate_chapter_versions(
             f"章节号超出范围，当前最多可创建第{existing_chapters + 1}章"
         )
 
+    # 生成唯一的task_id
+    task_id = str(uuid.uuid4())
+
     # 转换请求数据为字典格式
     request_dict = request.model_dump()
 
     # 生成多个版本
     try:
-        versions, context_used = ai_service.generate_chapter_versions(request_dict, db)
+        # 发送开始事件
+        await send_websocket_message(task_id, "started", {
+            "message": "开始生成章节版本",
+            "chapter_number": request.chapter_number,
+            "versions_count": request_dict.get('versions', 3)
+        })
+
+        versions, context_used = await ai_service.generate_chapter_versions_async(
+            request_dict, db, task_id
+        )
 
         # 删除旧的草稿
         db.query(ContentGenerationDraft).filter(
@@ -334,9 +349,17 @@ def generate_chapter_versions(
 
         db.commit()
 
+        # 发送完成事件
+        await send_websocket_message(task_id, "completed", {
+            "message": "章节生成完成",
+            "chapter_number": request.chapter_number,
+            "versions_count": len(versions)
+        })
+
         # 构建响应数据
         response_data = {
             "chapter_id": request.chapter_number,
+            "task_id": task_id,  # 返回task_id供WebSocket连接使用
             "versions": [
                 {
                     "version_id": v["version_id"],
@@ -356,6 +379,12 @@ def generate_chapter_versions(
         )
 
     except Exception as e:
+        # 发送错误事件
+        await send_websocket_message(task_id, "error", {
+            "message": f"生成失败: {str(e)}",
+            "error": str(e)
+        })
+
         logger.error(f"章节生成失败: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
