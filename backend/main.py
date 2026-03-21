@@ -18,7 +18,7 @@ from app.core.exception_handler import (
     sqlalchemy_exception_handler,
     general_exception_handler
 )
-from app.api import auth, projects, chapters, characters, world_settings, plot_nodes
+from app.api import auth, projects, chapters, characters, world_settings, plot_nodes, context_analysis
 
 # 创建数据库表
 Base.metadata.create_all(bind=engine)
@@ -69,6 +69,7 @@ app.include_router(chapters.router, prefix="/api")
 app.include_router(characters.router, prefix="/api")
 app.include_router(world_settings.router, prefix="/api")
 app.include_router(plot_nodes.router, prefix="/api")
+app.include_router(context_analysis.router, prefix="/api")
 
 
 @app.get("/", tags=["根路径"])

@@ -13,7 +13,10 @@
       "Skill(superpowers:subagent-driven-development)",
       "Bash(python:*)",
       "Bash(git show:*)",
-      "Skill(superpowers:requesting-code-review)"
+      "Skill(superpowers:requesting-code-review)",
+      "Bash(wc:*)",
+      "Bash(find:*)",
+      "Bash(curl:*)"
     ]
   }
 }

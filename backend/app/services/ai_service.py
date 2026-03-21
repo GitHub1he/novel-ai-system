@@ -370,6 +370,20 @@ class AIService:
 
         return "".join(prompt_parts)
 
+    def _parse_attributes(self, attributes):
+        """解析attributes字段，确保返回字典"""
+        if attributes is None:
+            return {}
+        if isinstance(attributes, dict):
+            return attributes
+        if isinstance(attributes, str):
+            try:
+                import json
+                return json.loads(attributes)
+            except:
+                return {}
+        return {}
+
     def _validate_and_enrich_recommendations(
         self,
         ai_recommendations: Dict,
@@ -425,7 +439,7 @@ class AIService:
                     "name": setting.name,
                     "type": setting.setting_type.value if setting.setting_type else "other",
                     "description": setting.description or "",
-                    "attributes": setting.attributes or {},
+                    "attributes": self._parse_attributes(setting.attributes),
                     "is_core_rule": bool(setting.is_core_rule)
                 })
 
