@@ -16,6 +16,7 @@ import { projectApi, chapterApi } from '../services/api'
 import CharacterManagement from '../components/CharacterManagement'
 import WorldSettingManagement from '../components/WorldSettingManagement'
 import ProjectStyleSettings from '../components/ProjectStyleSettings'
+import ContextAnalysisView from '../components/ContextAnalysisView'
 import type { Project, Chapter } from '../types'
 
 const { Content, Sider } = Layout
@@ -50,6 +51,8 @@ const ProjectDetail = () => {
   const [saving, setSaving] = useState(false)
   const [loadingChapter, setLoadingChapter] = useState(false)
   const [styleSettingsVisible, setStyleSettingsVisible] = useState(false)
+  const [contextAnalysisVisible, setContextAnalysisVisible] = useState(false)
+  const [plotDirection, setPlotDirection] = useState('')
 
   useEffect(() => {
     fetchProject()
@@ -249,6 +252,30 @@ const ProjectDetail = () => {
     }
   }
 
+  const handleOpenContextAnalysis = () => {
+    if (currentChapter) {
+      setContextAnalysisVisible(true)
+    } else {
+      message.warning('请先选择一个章节')
+    }
+  }
+
+  const handleCloseContextAnalysis = () => {
+    setContextAnalysisVisible(false)
+    setPlotDirection('')
+  }
+
+  const handleContextAnalysisConfirm = (selectedContext: any) => {
+    // 处理用户选择的上下文
+    console.log('Selected context:', selectedContext)
+
+    // 这里可以添加生成逻辑，根据选择的上下文生成内容
+    message.success('已选择上下文，可以开始生成内容')
+
+    setContextAnalysisVisible(false)
+    setPlotDirection('')
+  }
+
   if (!project) {
     return (
       <div style={{ textAlign: 'center', padding: '100px' }}>
@@ -333,6 +360,12 @@ const ProjectDetail = () => {
                               style={{ borderColor: '#d9d9d9' }}
                             >
                               编辑大纲
+                            </Button>
+                            <Button
+                              onClick={handleOpenContextAnalysis}
+                              type="default"
+                            >
+                              上下文分析
                             </Button>
                             <Button
                               onClick={handleSaveContent}
@@ -779,6 +812,17 @@ const ProjectDetail = () => {
         onClose={() => setStyleSettingsVisible(false)}
         project={project}
         onSave={handleSaveStyleSettings}
+      />
+
+      {/* 上下文分析模态框 */}
+      <ContextAnalysisView
+        visible={contextAnalysisVisible}
+        projectId={Number(id)}
+        plotDirection={plotDirection}
+        chapterNumber={currentChapter?.chapter_number || 0}
+        previousChapterId={chapters.find(c => c.chapter_number === (currentChapter?.chapter_number || 0) - 1)?.id}
+        onConfirm={handleContextAnalysisConfirm}
+        onCancel={handleCloseContextAnalysis}
       />
     </Layout>
   )

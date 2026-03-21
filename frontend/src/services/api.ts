@@ -128,4 +128,10 @@ export const plotNodeApi = {
     api.post<{ code: number; message: string; data: null }>(`/plot-nodes/${id}/delete`),
 }
 
+// 上下文分析API
+export const contextAnalysisApi = {
+  analyze: (data: { project_id: number; plot_direction?: string; previous_chapter_id?: number; chapter_number: number }) =>
+    api.post<{ code: number; message: string; data: any }>('/chapters/analyze-context', data),
+}
+
 export default api

@@ -22,7 +22,9 @@
       "Bash(pkill:*)",
       "Bash(timeout:*)",
       "Bash(netstat:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(npm run)",
+      "Bash(npx tsc:*)"
     ]
   }
 }
