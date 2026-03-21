@@ -1,11 +1,11 @@
 # 智能续写功能设计文档
 
 **项目**: Novel AI System (小说AI生成与管理系统)
-**文档版本**: v1.1
+**文档版本**: v1.2
 **创建日期**: 2025-03-21
 **最后更新**: 2025-03-21
 **作者**: Claude
-**状态**: 设计阶段（已根据审查意见更新）
+**状态**: 设计阶段（已优化：智能上下文注入）
 
 ---
 
@@ -73,53 +73,144 @@
 }
 ```
 
-#### 2.1.2 续写模式
+#### 2.1.2 续写模式（智能上下文注入）
 
 **场景**：基于上一章结尾继续创作
 
-**功能**：
-- 自动获取前文内容（最后800字）
-- 支持选择衔接方式（紧接上文/三天后/换个场景）
-- 指定情节方向、冲突点
-- 可选出场人物、世界观设定
-- 生成2-3个版本供选择
+**核心改进**：**AI自动分析需要哪些上下文内容**
 
-**参数**：
+**功能流程**（两阶段生成）：
+
+```
+第一阶段：AI分析情节需求
+    ↓
+用户输入：情节方向（如"主角在宗门大比中遇到强劲对手"）
+    ↓
+AI分析：需要哪些人物、设定、情节节点？
+    ↓
+AI返回建议清单：
+  - 人物：主角张三、反派李四、裁判王五
+  - 世界观：宗门大比规则、修仙等级体系
+  - 情节：前文铺垫的"大比报名"节点
+    ↓
+用户查看并调整建议（可选添加/删除）
+    ↓
+第二阶段：正式生成
+    ↓
+系统查询AI建议的所有内容
+    ↓
+构建完整的上下文Prompt
+    ↓
+生成2-3个版本供选择
+```
+
+**新增参数**：
+
 ```json
 {
   "mode": "simple|standard|advanced",
   "project_id": 1,
   "chapter_number": 2,
-  "continue_mode": {
-    "previous_chapter_id": 1,
-    "transition": "紧接上文",
-    "plot_direction": "本章情节方向",
-    "conflict_point": "核心冲突"
+
+  // 第一阶段：上下文分析
+  "plot_direction": "主角在宗门大比中遇到强劲对手",
+
+  // 第二阶段：AI分析后返回（用户可调整）
+  "suggested_context": {
+    "characters": [1, 5, 8],  // AI建议的人物ID
+    "world_settings": [2, 7],  // AI建议的设定ID
+    "plot_nodes": [10, 15]      // AI建议的情节节点ID
   },
-  "featured_characters": [1, 3],
+
+  // 用户可手动覆盖AI建议
+  "override_characters": [1, 5, 8, 12],  // 用户额外添加的人物
+  "override_world_settings": [2],        // 用户删除了7号设定
+
+  // 其他参数
   "word_count": 2000,
   "versions": 3
 }
 ```
 
+**前后端交互流程**：
+
+```typescript
+// 步骤1：用户输入情节方向
+const plotDirection = "主角在宗门大比中遇到强劲对手";
+
+// 步骤2：调用AI分析API
+POST /api/chapters/analyze-context
+{
+  "project_id": 1,
+  "plot_direction": plotDirection,
+  "previous_chapter_id": 1  // 可选，用于分析前文
+}
+
+// 步骤3：AI返回建议
+{
+  "suggested": {
+    "characters": [
+      {"id": 1, "name": "张三", "reason": "主角，需要参与大比"},
+      {"id": 5, "name": "李四", "reason": "主要反派，作为对手"},
+      {"id": 8, "name": "王五", "reason": "裁判，需要设定"}
+    ],
+    "world_settings": [
+      {"id": 2, "name": "宗门大比规则", "reason": "核心规则"},
+      {"id": 7, "name": "修仙等级体系", "reason": "实力对比参考"}
+    ],
+    "plot_nodes": [
+      {"id": 10, "name": "大比报名", "reason": "前文铺垫"}
+    ]
+  }
+}
+
+// 步骤4：用户查看并调整（前端UI）
+// 用户可以：添加/删除人物、修改设定、确认建议
+
+// 步骤5：开始正式生成
+POST /api/chapters/generate
+{
+  "plot_direction": plotDirection,
+  "suggested_context": {...},  // 确认后的上下文
+  "word_count": 2000,
+  "versions": 3
+}
+```
+
+**参数对比（新旧方案）**：
+
+| 对比项 | 旧方案（用户手动选择） | 新方案（AI智能分析） |
+|--------|---------------------|-------------------|
+| 人物选择 | 用户从列表中勾选 | AI分析情节，自动推荐 |
+| 设定选择 | 用户手动查找和选择 | AI判断需要哪些规则 |
+| 情节关联 | 用户回忆相关情节节点 | AI自动查找关联节点 |
+| 准确性 | 依赖用户记忆 | AI基于内容分析 |
+| 便利性 | 需要多次操作 | 一键分析+确认 |
+
 ### 2.2 三种控制模式
 
 #### 2.2.1 简单模式（Simple）
 
-**适用场景**：快速生成，不关心细节
+**适用场景**：快速生成，信任AI判断
 
 **参数**：
 - 前文内容（自动获取）
-- 续写字数
 - 情节方向（简短描述）
+- 续写字数
 
 **AI上下文**：
 - 项目基础信息
 - 前文提要（800字）
+- **AI自动分析并注入相关内容** ✨
+
+**特点**：
+- 无需手动选择人物和设定
+- AI根据情节方向自动判断
+- 适合快速创作
 
 #### 2.2.2 标准模式（Standard）
 
-**适用场景**：常规创作，需要一定控制
+**适用场景**：希望控制关键要素，其余由AI处理
 
 **额外参数**：
 - 本章出场人物（从现有人物中选择）
@@ -153,98 +244,9 @@
 
 ## 二点五、非功能需求
 
-### 2.5.1 成本控制
+### 2.5.1 安全与权限设计
 
-**问题**：多版本生成会导致API调用成本倍增（3版本 = 3倍成本）
-
-**解决方案**：
-
-#### 2.5.1.1 生成配额限制
-
-**数据库扩展**：
-
-```sql
--- 在 projects 表增加字段
-ALTER TABLE projects ADD COLUMN daily_generation_limit INTEGER DEFAULT 10;
-ALTER TABLE projects ADD COLUMN monthly_api_budget DECIMAL(10,2) DEFAULT 100.0;
-
--- 记录每日生成次数
-CREATE TABLE generation_usage_logs (
-    id SERIAL PRIMARY KEY,
-    project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
-    generation_date DATE NOT NULL,
-    versions_generated INTEGER DEFAULT 0,  -- 生成的版本总数
-    estimated_cost DECIMAL(10,4) DEFAULT 0.0,  -- 预估成本（元）
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-
-    UNIQUE(project_id, generation_date)
-);
-```
-
-**配额检查逻辑**：
-
-```python
-def check_generation_quota(project_id: int, versions: int) -> tuple[bool, str]:
-    """检查生成配额
-
-    Returns:
-        (allowed: bool, message: str)
-    """
-    # 1. 检查每日限额
-    today_usage = db.query(GenerationUsageLog).filter(
-        GenerationUsageLog.project_id == project_id,
-        GenerationUsageLog.generation_date == date.today()
-    ).first()
-
-    if today_usage and today_usage.versions_generated >= today_usage.project.daily_generation_limit:
-        return False, f"今日生成次数已达上限（{today_usage.project.daily_generation_limit}次）"
-
-    # 2. 检查月度预算
-    monthly_cost = db.query(func.sum(GenerationUsageLog.estimated_cost)).filter(
-        GenerationUsageLog.project_id == project_id,
-        extract('year', GenerationUsageLog.generation_date) == date.today().year,
-        extract('month', GenerationUsageLog.generation_date) == date.today().month
-    ).scalar() or 0
-
-    estimated_cost = versions * 0.001  # 假设每版本成本0.001元
-
-    if monthly_cost + estimated_cost > get_project(project_id).monthly_api_budget:
-        return False, f"月度API预算不足（剩余：{monthly_cost:.2f}元）"
-
-    return True, ""
-```
-
-#### 2.5.1.2 成本预估与提示
-
-**前端显示**：
-
-```
-┌─ 生成设置 ──────────────────────────────────────────┐
-│  生成版本：[3] 个                                    │
-│  预估成本：¥0.003  （今日剩余：7次，本月预算：¥95.2）│
-│  ⚠️ 提示：多版本生成会增加成本，请合理使用           │
-└───────────────────────────────────────────────────────┘
-```
-
-**API响应增加成本信息**：
-
-```json
-{
-  "code": 200,
-  "data": {
-    "versions": [...],
-    "cost_info": {
-      "estimated_cost": 0.003,
-      "remaining_quota": 7,
-      "monthly_budget_remaining": 95.2
-    }
-  }
-}
-```
-
-### 2.5.2 安全与权限设计
-
-#### 2.5.2.1 API认证
+#### 2.5.1.1 API认证
 
 **JWT认证要求**：
 
@@ -271,7 +273,7 @@ def generate_chapter(
     # ... 生成逻辑
 ```
 
-#### 2.5.2.2 API速率限制
+#### 2.5.1.2 API速率限制
 
 **防止恶意请求导致成本激增**：
 
@@ -287,7 +289,7 @@ def generate_chapter(...):
     # ... 生成逻辑
 ```
 
-#### 2.5.2.3 草稿数据隔离
+#### 2.5.1.3 草稿数据隔离
 
 **草稿仅创建者可见**：
 
@@ -307,7 +309,7 @@ def get_drafts(chapter_id: int, current_user: User, db: Session):
     ).all()
 ```
 
-### 2.5.3 数据清理策略
+### 2.5.2 数据清理策略
 
 **问题**：`content_generation_drafts` 表会无限增长
 
@@ -510,6 +512,160 @@ POST /api/chapters/generate
 3. **第三阶段**（v2.0）：
    - 完全移除旧接口
    - 仅保留新接口
+
+### 4.1.2 上下文分析接口（新增）⭐
+
+**端点**：`POST /api/chapters/analyze-context`
+
+**功能**：AI分析情节方向，智能推荐需要的人物、设定、情节节点
+
+**请求参数**：
+
+```json
+{
+  "project_id": 1,
+  "plot_direction": "主角在宗门大比中遇到强劲对手",
+  "previous_chapter_id": 1,  // 可选，用于分析前文
+  "chapter_number": 2
+}
+```
+
+**响应格式**：
+
+```json
+{
+  "code": 200,
+  "message": "分析完成",
+  "data": {
+    "suggested_characters": [
+      {
+        "id": 1,
+        "name": "张三",
+        "role": "protagonist",
+        "reason": "主角，需要参与大比"
+      },
+      {
+        "id": 5,
+        "name": "李四",
+        "role": "antagonist",
+        "reason": "主要反派，作为对手"
+      },
+      {
+        "id": 8,
+        "name": "王五",
+        "role": "supporting",
+        "reason": "裁判，需要设定"
+      }
+    ],
+    "suggested_world_settings": [
+      {
+        "id": 2,
+        "name": "宗门大比规则",
+        "type": "rule",
+        "reason": "核心规则，需要遵守"
+      },
+      {
+        "id": 7,
+        "name": "修仙等级体系",
+        "type": "power",
+        "reason": "实力对比参考"
+      }
+    ],
+    "suggested_plot_nodes": [
+      {
+        "id": 10,
+        "name": "大比报名",
+        "type": "revelation",
+        "reason": "前文铺垫，需要承接"
+      }
+    ],
+    "summary": "建议包含3个人物、2个设定、1个情节节点"
+  }
+}
+```
+
+**AI分析逻辑**：
+
+```python
+def analyze_context_requirements(
+    project_id: int,
+    plot_direction: str,
+    previous_chapter_id: Optional[int],
+    db: Session
+) -> dict:
+    """AI分析情节需求，推荐相关内容"""
+
+    # 1. 获取项目的基础信息
+    project = db.query(Project).get(project_id)
+
+    # 2. 构建分析Prompt
+    all_characters = db.query(Character).filter(
+        Character.project_id == project_id
+    ).all()
+
+    all_settings = db.query(WorldSetting).filter(
+        WorldSetting.project_id == project_id
+    ).all()
+
+    all_plots = db.query(PlotNode).filter(
+        PlotNode.project_id == project_id
+    ).all()
+
+    # 3. 调用AI分析
+    prompt = f"""你是小说创作助手。根据以下情节方向，分析需要哪些内容。
+
+项目：{project.title}
+类型：{project.genre}
+情节方向：{plot_direction}
+
+现有人物：
+{format_characters_list(all_characters)}
+
+现有世界观设定：
+{format_settings_list(all_settings)}
+
+现有情节节点：
+{format_plots_list(all_plots)}
+
+请分析并推荐：
+1. 需要哪些人物（最多5个）
+2. 需要哪些世界观设定（最多3个）
+3. 需要关联哪些情节节点（最多2个）
+
+对每个推荐项，说明理由。
+
+以JSON格式返回。
+"""
+
+    response = client.chat.completions.create(
+        model=settings.AI_MODEL,
+        messages=[
+            {"role": "system", "content": "你是专业的小说创作分析师"},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.3,  # 低温度，确保准确性
+        response_format={"type": "json_object"}
+    )
+
+    result = json.loads(response.choices[0].message.content)
+
+    # 4. 验证并补充AI的推荐
+    validated_result = validate_and_enrich_recommendations(
+        result,
+        all_characters,
+        all_settings,
+        all_plots,
+        db
+    )
+
+    return validated_result
+```
+
+**优化建议**：
+
+1. **缓存分析结果**：相同的情节方向可以复用分析结果（5分钟有效期）
+2. **用户反馈学习**：记录用户删除了哪些推荐，优化未来的推荐
+3. **置信度评分**：AI对每个推荐给出置信度，帮助用户判断
 
 ### 4.2 版本选择接口
 
