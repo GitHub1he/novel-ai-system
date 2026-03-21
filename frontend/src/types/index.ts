@@ -112,6 +112,55 @@ export interface PlotNode {
   updated_at?: string
 }
 
+// Generation modes
+export type GenerationMode = 'simple' | 'standard' | 'advanced';
+
+// Request types
+export interface FirstChapterMode {
+  opening_scene: string
+  key_elements: string[]
+  tone?: string
+}
+
+export interface ContinueMode {
+  previous_chapter_id: number
+  transition: string
+  plot_direction: string
+  conflict_point?: string
+}
+
+export interface ChapterGenerateRequest {
+  mode: GenerationMode
+  project_id: number
+  chapter_number: number
+  first_chapter_mode?: FirstChapterMode
+  continue_mode?: ContinueMode
+  suggested_context?: {
+    characters?: number[]
+    world_settings?: number[]
+    plot_nodes?: number[]
+  }
+  featured_characters?: number[]
+  related_world_settings?: number[]
+  related_plot_nodes?: number[]
+  word_count?: number
+  versions?: number
+  style_intensity?: number
+  pov_character_id?: number
+  temperature?: number
+}
+
+export interface ChapterGenerateResponse {
+  code: number
+  message: string
+  data: {
+    chapter_id: number
+    task_id?: string
+    versions: GeneratedVersion[]
+    context_used: any
+  }
+}
+
 export interface GeneratedVersion {
   version_id: string
   content: string

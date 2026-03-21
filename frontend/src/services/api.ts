@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { User, Project, Chapter, PlotNode } from '../types'
+import type { User, Project, Chapter, PlotNode, WorldSetting, Character, ChapterGenerateRequest } from '../types'
 
 const api = axios.create({
   baseURL: '/api',
@@ -130,8 +130,43 @@ export const plotNodeApi = {
 
 // 上下文分析API
 export const contextAnalysisApi = {
-  analyze: (data: { project_id: number; plot_direction?: string; previous_chapter_id?: number; chapter_number: number }) =>
-    api.post<{ code: number; message: string; data: any }>('/chapters/analyze-context', data),
+  analyze: (params: { project_id: number; plot_direction: string; previous_chapter_id?: number; chapter_number: number }) =>
+    api.post<{ code: number; message: string; data: any }>('/chapters/analyze-context', params),
+}
+
+// 统一生成API
+export const generateChapterApi = {
+  generate: async (params: ChapterGenerateRequest) => {
+    const token = localStorage.getItem('token')
+    const response = await axios.post(
+      `${api.defaults.baseURL}/api/chapters/generate`,
+      params,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    return response.data
+  }
+}
+
+// 版本选择API
+export const versionApi = {
+  selectVersion: async (chapterId: number, params: { version_id: string; edited_content?: string }) => {
+    const token = localStorage.getItem('token')
+    const response = await axios.post(
+      `${api.defaults.baseURL}/api/chapters/${chapterId}/select-version`,
+      params,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    return response.data
+  },
+
+  getDrafts: async (chapterId: number) => {
+    const token = localStorage.getItem('token')
+    const response = await axios.get(
+      `${api.defaults.baseURL}/api/chapters/${chapterId}/drafts`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    return response.data
+  }
 }
 
 export default api
