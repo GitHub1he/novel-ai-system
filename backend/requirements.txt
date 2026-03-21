@@ -24,4 +24,10 @@ pydantic-settings>=2.6.0
 python-dateutil>=2.9.0
 email-validator>=2.1.0
 
+# 速率限制
+slowapi>=0.1.9
+
+# 定时任务
+apscheduler>=3.10.4
+
 # CORS (FastAPI内置支持，无需额外安装)
