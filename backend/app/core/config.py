@@ -10,7 +10,7 @@ class Settings(BaseSettings):
 
     # 数据库配置
     # 选项1: PostgreSQL (生产环境推荐)
-    DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/novel_ai"
+    DATABASE_URL: str = "postgresql://novel_ai_user:novel_ai_password@localhost:5432/novel_ai_db"
     # 选项2: SQLite (开发环境，无需安装数据库)
     # DATABASE_URL: str = "sqlite:///./novel_ai.db"
 
@@ -19,10 +19,11 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7天
 
-    # AI配置
-    OPENAI_API_KEY: Optional[str] = None
-    OPENAI_API_BASE: Optional[str] = None  # 支持自定义API端点
-    AI_MODEL: str = "gpt-3.5-turbo"
+    # AI配置 - 智谱AI (GLM)
+    ZHIPUAI_API_KEY: Optional[str] = None  # 智谱AI API密钥
+    OPENAI_API_KEY: Optional[str] = None  # 保留兼容性
+    OPENAI_API_BASE: str = "https://open.bigmodel.cn/api/paas/v4/"  # 智谱AI API端点
+    AI_MODEL: str = "GLM-4.7-Flash"  # 默认使用GLM-4 Flash（速度快、成本低）
 
     # CORS配置
     BACKEND_CORS_ORIGINS: list = ["http://localhost:3000", "http://localhost:5173"]

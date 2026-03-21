@@ -8,9 +8,10 @@ CREATE TABLE IF NOT EXISTS content_generation_drafts (
     summary TEXT,
     is_selected BOOLEAN DEFAULT FALSE,
     generation_mode VARCHAR(50),
-    temperature VARCHAR(50),
+    temperature NUMERIC(3, 2),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(chapter_id, version_id)
+    UNIQUE(chapter_id, version_id),
+    CONSTRAINT check_temperature_range CHECK (temperature IS NULL OR (temperature >= 0.0 AND temperature <= 1.0))
 );
 
 -- 创建索引以提升查询性能
@@ -22,3 +23,4 @@ CREATE INDEX IF NOT EXISTS idx_drafts_created ON content_generation_drafts(creat
 COMMENT ON TABLE content_generation_drafts IS '内容生成草稿表，保存AI生成的多个版本供用户选择';
 COMMENT ON COLUMN content_generation_drafts.version_id IS '版本标识，如v1, v2, v3';
 COMMENT ON COLUMN content_generation_drafts.is_selected IS '用户是否选中此版本作为正式内容';
+COMMENT ON COLUMN content_generation_drafts.temperature IS 'AI生成的温度参数，范围0.0-1.0';

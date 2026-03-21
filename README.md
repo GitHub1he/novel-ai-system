@@ -14,7 +14,7 @@
 ### 后端
 - FastAPI (Python 3.10+)
 - PostgreSQL 15
-- OpenAI API / 国内大模型
+- 智谱AI GLM-4（支持切换其他OpenAI兼容服务）
 
 ### 前端
 - React 18 + TypeScript
@@ -24,6 +24,8 @@
 
 ## 快速开始
 
+📚 **详细的快速启动指南请查看 [QUICKSTART.md](./QUICKSTART.md)**
+
 ### 前置要求
 
 - Node.js 18+
@@ -31,56 +33,37 @@
 - PostgreSQL 15+
 - Docker (可选)
 
-### 1. 克隆项目
+### 快速启动步骤
 
 ```bash
+# 1. 克隆项目
 git clone <repository-url>
 cd novel-ai-system
-```
 
-### 2. 启动数据库
-
-使用Docker（推荐）：
-
-```bash
+# 2. 启动数据库
 docker-compose up -d postgres
-```
 
-或手动安装PostgreSQL。
-
-### 3. 配置后端
-
-```bash
+# 3. 启动后端
 cd backend
-
-# 安装依赖
 pip install -r requirements.txt
-
-# 配置环境变量
 cp .env.example .env
-# 编辑.env文件，配置数据库和AI API密钥
-
-# 运行后端
 python main.py
-```
 
-后端将在 http://localhost:8000 启动
-
-API文档：http://localhost:8000/api/docs
-
-### 4. 配置前端
-
-```bash
+# 4. 启动前端（新开终端）
 cd frontend
-
-# 安装依赖
 npm install
-
-# 启动开发服务器
 npm run dev
 ```
 
-前端将在 http://localhost:5173 启动
+- 后端：http://localhost:8000 (API文档：http://localhost:8000/docs)
+- 前端：http://localhost:5173
+
+### 详细文档
+
+- **[快速启动指南](./QUICKSTART.md)** - 完整的项目启动步骤
+- **[项目结构文档](./PROJECT_STRUCTURE.md)** - 架构设计、技术栈、代码组织
+- **[后端文档](./backend/README.md)** - 后端技术栈、API接口、开发指南
+- **[前端文档](./frontend/README.md)** - 前端技术栈、组件说明、开发指南
 
 ## 项目结构
 
@@ -110,23 +93,30 @@ novel-ai-system/
 ## MVP功能（当前阶段）
 
 ### 已实现
-- 用户注册/登录
-- 项目创建和管理
-- 项目列表查看
-- 基础布局框架
-- API接口封装
+- ✅ 用户注册/登录
+- ✅ 项目创建和管理
+- ✅ 项目列表查看
+- ✅ 章节管理（创建、编辑、状态切换）
+- ✅ 章节列表和详情
+- ✅ 大纲编辑功能
+- ✅ 章节状态管理（草稿/修订中/已完成）
+- ✅ 人物管理基础框架
+- ✅ 世界观设定基础框架
+- ✅ 性能优化（列表不加载大字段）
 
 ### 开发中
-- 章节管理
-- AI内容生成
-- 富文本编辑器
-- 人物/世界观设定
+- 🚧 AI内容生成
+- 🚧 富文本编辑器增强
+- 🚧 人物关系管理
+- 🚧 世界观设定完善
 
 ### 规划中
-- 版本管理
-- 逻辑一致性检查
-- 数据可视化
-- 多格式导出
+- ⏳ 版本管理
+- ⏳ 章节导出功能
+- ⏳ 自动保存
+- ⏳ 逻辑一致性检查
+- ⏳ 数据可视化
+- ⏳ 多格式导出
 
 ## 环境配置
 

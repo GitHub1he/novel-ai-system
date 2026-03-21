@@ -6,9 +6,9 @@ services:
     image: postgres:15
     container_name: novel_ai_db
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: novel_ai
+      POSTGRES_USER: novel_ai_user
+      POSTGRES_PASSWORD: novel_ai_password
+      POSTGRES_DB: novel_ai_db
     ports:
       - "5432:5432"
     volumes:
@@ -23,7 +23,7 @@ services:
   #     dockerfile: Dockerfile
   #   container_name: novel_ai_backend
   #   environment:
-  #     DATABASE_URL: postgresql://postgres:postgres@postgres:5432/novel_ai
+  #     DATABASE_URL: postgresql://novel_ai_user:novel_ai_password@postgres:5432/novel_ai_db
   #   ports:
   #     - "8000:8000"
   #   depends_on:

@@ -7,11 +7,9 @@ import App from './App'
 import './styles/index.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <ConfigProvider locale={zhCN}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </ConfigProvider>
-  </React.StrictMode>,
+  <ConfigProvider locale={zhCN}>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </ConfigProvider>,
 )

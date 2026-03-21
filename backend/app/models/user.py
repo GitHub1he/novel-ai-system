@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, Text
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.core.database import Base
 
 
@@ -23,3 +24,6 @@ class User(Base):
     # 时间戳
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # 关系
+    projects = relationship("Project", back_populates="user", cascade="all, delete-orphan")

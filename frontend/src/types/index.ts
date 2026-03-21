@@ -73,6 +73,9 @@ export interface Chapter {
   version: number
   created_at: string
   updated_at: string
+  // 列表接口专用字段
+  has_outline?: boolean
+  has_content?: boolean
 }
 
 export interface WorldSetting {
@@ -87,4 +90,24 @@ export interface WorldSetting {
   image?: string
   created_at: string
   updated_at: string
+}
+
+export interface PlotNode {
+  id: number
+  project_id: number
+  title: string
+  description?: string
+  plot_type: 'meeting' | 'betrayal' | 'reconciliation' | 'conflict' | 'revelation' | 'transformation' | 'climax' | 'resolution' | 'other'
+  importance: 'main' | 'branch' | 'background'
+  chapter_id?: number
+  related_characters?: string
+  related_locations?: string
+  related_world_settings?: string
+  conflict_points?: string
+  theme_tags?: string
+  sequence_number: number
+  parent_plot_id?: number
+  is_completed: number
+  created_at: string
+  updated_at?: string
 }

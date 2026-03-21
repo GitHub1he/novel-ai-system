@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create vite:*)",
+      "Bash(chmod:*)",
+      "Bash(tree:*)",
+      "Bash(pip install:*)",
+      "Bash(docker-compose exec:*)",
+      "Skill(superpowers:brainstorming)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Skill(superpowers:writing-plans)",
+      "Skill(superpowers:subagent-driven-development)",
+      "Bash(python:*)",
+      "Bash(git show:*)",
+      "Skill(superpowers:requesting-code-review)"
+    ]
+  }
+}

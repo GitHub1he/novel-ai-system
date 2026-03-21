@@ -83,7 +83,8 @@ def test_unique_version_per_chapter(db: Session):
     db.add(draft2)
 
     # 应该抛出IntegrityError
-    with pytest.raises(Exception):  # IntegrityError
+    from sqlalchemy.exc import IntegrityError
+    with pytest.raises(IntegrityError):
         db.commit()
 
 
@@ -177,6 +178,8 @@ def test_multiple_drafts_per_chapter(db: Session):
 
 def test_draft_metadata_fields(db: Session):
     """测试草稿的元数据字段"""
+    from decimal import Decimal
+
     # 创建测试项目
     project = Project(
         title="Test Project",
@@ -205,14 +208,78 @@ def test_draft_metadata_fields(db: Session):
         summary="这是AI生成的版本摘要",
         is_selected=True,
         generation_mode="advanced",
-        temperature="0.85"
+        temperature=Decimal("0.85")
     )
     db.add(draft)
     db.commit()
 
     # 验证元数据
     assert draft.generation_mode == "advanced"
-    assert draft.temperature == "0.85"
+    assert draft.temperature == Decimal("0.85")
     assert draft.summary == "这是AI生成的版本摘要"
     assert draft.word_count == 2
     assert draft.is_selected is True
+
+
+def test_cascade_delete_chapter_deletes_drafts(db: Session):
+    """测试删除章节时级联删除相关草稿"""
+    from sqlalchemy import text
+
+    # 创建测试项目
+    project = Project(
+        title="Test Project",
+        author="Test Author",
+        genre="测试类型",
+        user_id=1
+    )
+    db.add(project)
+    db.commit()
+
+    # 创建测试章节
+    chapter = Chapter(
+        project_id=project.id,
+        chapter_number=1,
+        title="Test Chapter"
+    )
+    db.add(chapter)
+    db.commit()
+    db.refresh(chapter)
+
+    # 保存chapter_id在变量中，因为chapter对象会被删除
+    chapter_id = chapter.id
+
+    # 创建多个草稿
+    draft1 = ContentGenerationDraft(
+        chapter_id=chapter_id,
+        version_id="v1",
+        content="内容1"
+    )
+    draft2 = ContentGenerationDraft(
+        chapter_id=chapter_id,
+        version_id="v2",
+        content="内容2"
+    )
+    db.add(draft1)
+    db.add(draft2)
+    db.commit()
+    db.refresh(draft1)
+    db.refresh(draft2)
+
+    # 记录草稿ID
+    draft1_id = draft1.id
+    draft2_id = draft2.id
+
+    # 验证草稿存在
+    assert db.query(ContentGenerationDraft).filter_by(id=draft1_id).first() is not None
+    assert db.query(ContentGenerationDraft).filter_by(id=draft2_id).first() is not None
+
+    # 使用原生SQL删除章节（测试数据库级联删除）
+    db.execute(text("DELETE FROM chapters WHERE id = :chapter_id"), {"chapter_id": chapter_id})
+    db.commit()
+
+    # 验证章节被删除
+    assert db.query(Chapter).filter_by(id=chapter_id).first() is None
+
+    # 验证草稿被级联删除
+    assert db.query(ContentGenerationDraft).filter_by(id=draft1_id).first() is None, f"Draft {draft1_id} should be deleted"
+    assert db.query(ContentGenerationDraft).filter_by(id=draft2_id).first() is None, f"Draft {draft2_id} should be deleted"

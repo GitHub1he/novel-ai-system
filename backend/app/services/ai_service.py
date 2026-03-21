@@ -7,9 +7,11 @@ import json
 class AIService:
     def __init__(self):
         self.client = None
-        if settings.OPENAI_API_KEY:
+        # 支持智谱AI和OpenAI兼容接口
+        api_key = settings.ZHIPUAI_API_KEY or settings.OPENAI_API_KEY
+        if api_key:
             self.client = OpenAI(
-                api_key=settings.OPENAI_API_KEY,
+                api_key=api_key,
                 base_url=settings.OPENAI_API_BASE
             )
 

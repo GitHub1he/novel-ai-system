@@ -21,7 +21,7 @@ class Project(Base):
     # 基本信息
     title = Column(String, nullable=False)
     author = Column(String, nullable=False)  # 作者名
-    genre = Column(String, nullable=False)  # 类型：玄幻、言情、都市等
+    genre = Column(Text, nullable=False)  # 类型：支持 JSON 数组格式，如 ["玄幻","修仙","热血"]
     tags = Column(Text, nullable=True)  # 标签，JSON格式存储
     summary = Column(Text, nullable=True)  # 简介
     target_readers = Column(String, nullable=True)  # 目标读者
@@ -29,7 +29,11 @@ class Project(Base):
     # 创作设置
     status = Column(Enum(ProjectStatus), default=ProjectStatus.DRAFT)
     default_pov = Column(String, nullable=True)  # 默认视角
-    style = Column(String, nullable=True)  # 文风
+    style = Column(String, nullable=True)  # 文风预设
+    style_keywords = Column(Text, nullable=True)  # 文风关键词（JSON数组）
+    language_style = Column(String, nullable=True)  # 语言风格
+    sensory_focus = Column(Text, nullable=True)  # 感官重点（JSON数组）
+    style_intensity = Column(Integer, default=70)  # 风格匹配度(0-100)
     target_words_per_chapter = Column(Integer, default=2000)  # 每章目标字数
 
     # 背景模板
