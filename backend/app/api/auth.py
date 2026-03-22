@@ -61,7 +61,10 @@ def login(user_login: UserLogin, db: Session = Depends(get_db)):
             detail="用户已被禁用"
         )
 
-    # 创建访问令牌
-    access_token = create_access_token(data={"sub": user.username})
+    # 创建访问令牌（包含用户名和管理员标识）
+    access_token = create_access_token(data={
+        "sub": user.username,
+        "is_admin": user.is_admin
+    })
 
     return {"access_token": access_token, "token_type": "bearer"}

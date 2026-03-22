@@ -17,7 +17,7 @@ import {
 import {
   UserOutlined,
   GlobalOutlined,
-  BranchOutlined,
+  ApartmentOutlined,
   PlusOutlined,
   MinusOutlined,
   InfoCircleOutlined,
@@ -27,7 +27,6 @@ import {
 import { contextAnalysisApi } from '../services/api'
 
 const { Title, Text } = Typography
-const { Option } = Select
 
 interface ContextAnalysisViewProps {
   visible: boolean
@@ -401,7 +400,7 @@ const ContextAnalysisView: React.FC<ContextAnalysisViewProps> = ({
                     size="small"
                     title={
                       <Space>
-                        <BranchOutlined />
+                        <ApartmentOutlined />
                         <span>情节节点 ({selectedPlotNodes.length}/{analysisResult.validated_plot_nodes.length})</span>
                         <Checkbox
                           checked={selectedPlotNodes.length === analysisResult.validated_plot_nodes.length}

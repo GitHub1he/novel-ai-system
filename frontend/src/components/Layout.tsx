@@ -1,4 +1,4 @@
-import { Layout as AntLayout, Menu, Avatar, Dropdown } from 'antd'
+import { Layout as AntLayout, Menu, Avatar, Dropdown, message } from 'antd'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { LogoutOutlined, UserOutlined, BookOutlined } from '@ant-design/icons'
 import { useAuthStore } from '../utils/store'
@@ -19,12 +19,26 @@ const Layout = () => {
     },
   ]
 
+  // 如果是管理员，添加管理员菜单
+  if (user?.is_admin) {
+    menuItems.push({
+      key: '/admin',
+      icon: <UserOutlined />,
+      label: '管理员',
+      onClick: () => navigate('/admin'),
+    })
+  }
+
   const userMenuItems = [
     {
       key: 'logout',
       icon: <LogoutOutlined />,
       label: '退出登录',
-      onClick: logout,
+      onClick: () => {
+        logout()
+        message.success('已退出登录')
+        navigate('/login')
+      },
     },
   ]
 

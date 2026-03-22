@@ -3,18 +3,32 @@ from sqlalchemy.orm import Session
 from typing import List
 import json
 from app.core.database import get_db
+from app.core.dependencies import get_current_user
 from app.core.exception_handler import BusinessException, NotFoundException
+from app.models.user import User
 from app.core.logger import logger
 from app.models.world_setting import WorldSetting
+from app.core.permissions import get_project, require_project, get_world_setting, require_world_setting
 from app.schemas.world_setting import WorldSettingCreate, WorldSettingUpdate, WorldSettingResponse, WorldSettingListResponse
 
 router = APIRouter(prefix="/world-settings", tags=["世界观设定"])
 
 
 @router.post("/create", summary="创建世界观设定")
-def create_world_setting(setting: WorldSettingCreate, user_id: int = 1, db: Session = Depends(get_db)):
-    """创建新的世界观设定"""
+def create_world_setting(
+    setting: WorldSettingCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    创建新的世界观设定
+    - 管理员可在任何项目中创建世界观设定
+    - 普通用户只能在自己的项目中创建世界观设定
+    """
     try:
+        # 验证项目权限（统一权限检查）
+        project = require_project(setting.project_id, current_user, db)
+
         # 转换 attributes 和 related_entities 为 JSON 字符串
         setting_data = setting.model_dump()
         if setting_data.get('attributes'):
@@ -53,8 +67,16 @@ def create_world_setting(setting: WorldSettingCreate, user_id: int = 1, db: Sess
 
 
 @router.get("/list/{project_id}", summary="获取项目世界观设定列表")
-def get_world_settings(project_id: int, user_id: int = 1, db: Session = Depends(get_db)):
-    """获取项目的所有世界观设定"""
+def get_world_settings(
+    project_id: int,
+    project = Depends(get_project),
+    db: Session = Depends(get_db)
+):
+    """
+    获取项目的所有世界观设定
+    - 管理员可访问任何项目的世界观设定
+    - 普通用户只能访问自己项目的世界观设定
+    """
     try:
         settings = db.query(WorldSetting).filter(
             WorldSetting.project_id == project_id
@@ -96,17 +118,16 @@ def get_world_settings(project_id: int, user_id: int = 1, db: Session = Depends(
 
 
 @router.get("/detail/{setting_id}", summary="获取世界观设定详情")
-def get_world_setting(setting_id: int, user_id: int = 1, db: Session = Depends(get_db)):
-    """获取世界观设定详情"""
+def get_world_setting_detail(
+    setting = Depends(get_world_setting)
+):
+    """
+    获取世界观设定详情
+    - 管理员可访问任何世界观设定
+    - 普通用户只能访问自己项目的世界观设定
+    """
     try:
-        setting = db.query(WorldSetting).filter(
-            WorldSetting.id == setting_id
-        ).first()
-
-        if not setting:
-            raise NotFoundException(f"世界观设定 {setting_id} 不存在")
-
-        logger.info(f"获取世界观设定详情成功: {setting.name} (ID: {setting_id})")
+        logger.info(f"获取世界观设定详情成功: {setting.name} (ID: {setting.id})")
 
         return {
             "code": 200,
@@ -133,20 +154,16 @@ def get_world_setting(setting_id: int, user_id: int = 1, db: Session = Depends(g
 
 @router.post("/update/{setting_id}", summary="更新世界观设定")
 def update_world_setting(
-    setting_id: int,
     setting_update: WorldSettingUpdate,
-    user_id: int = 1,
+    setting = Depends(require_world_setting),
     db: Session = Depends(get_db)
 ):
-    """更新世界观设定信息"""
+    """
+    更新世界观设定信息
+    - 管理员可修改任何世界观设定
+    - 普通用户只能修改自己项目的世界观设定
+    """
     try:
-        setting = db.query(WorldSetting).filter(
-            WorldSetting.id == setting_id
-        ).first()
-
-        if not setting:
-            raise NotFoundException(f"世界观设定 {setting_id} 不存在")
-
         # 更新设定信息
         update_data = setting_update.model_dump(exclude_unset=True)
 
@@ -190,16 +207,16 @@ def update_world_setting(
 
 
 @router.post("/del/{setting_id}", summary="删除世界观设定")
-def delete_world_setting(setting_id: int, user_id: int = 1, db: Session = Depends(get_db)):
-    """删除世界观设定"""
+def delete_world_setting(
+    setting = Depends(require_world_setting),
+    db: Session = Depends(get_db)
+):
+    """
+    删除世界观设定
+    - 管理员可删除任何世界观设定
+    - 普通用户只能删除自己项目的世界观设定
+    """
     try:
-        setting = db.query(WorldSetting).filter(
-            WorldSetting.id == setting_id
-        ).first()
-
-        if not setting:
-            raise NotFoundException(f"世界观设定 {setting_id} 不存在")
-
         # 如果是核心规则，不允许删除
         if setting.is_core_rule == 1:
             raise BusinessException("核心规则不可删除")

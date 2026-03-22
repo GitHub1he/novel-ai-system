@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator, ConfigDict
+from pydantic import BaseModel, field_validator, ConfigDict, Field
 from datetime import datetime
 from typing import Optional
 from app.models.chapter import ChapterStatus
@@ -63,3 +63,9 @@ class ChapterResponse(BaseModel):
 class ChapterListResponse(BaseModel):
     chapters: list[ChapterResponse]
     total: int
+
+
+class ChapterContentGenerateRequest(BaseModel):
+    """章节内容生成请求（简单版）"""
+    prompt: str = Field(..., min_length=1, description="生成提示词")
+

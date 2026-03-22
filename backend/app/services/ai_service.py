@@ -6,10 +6,14 @@ from app.models.character import Character
 from app.models.world_setting import WorldSetting
 from app.models.plot_node import PlotNode
 from app.models.chapter import Chapter
+from app.core.websocket_manager import send_websocket_message
 from typing import List, Dict, Optional
 import json
 import uuid
 import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class AIService:
@@ -29,25 +33,87 @@ class AIService:
 
         # 项目基础信息
         if project_data:
-            context_parts.append(f"## 小说信息\n")
+            context_parts.append(f"## 📚 小说信息\n")
             context_parts.append(f"书名：{project_data.get('title', '')}\n")
             context_parts.append(f"类型：{project_data.get('genre', '')}\n")
             context_parts.append(f"简介：{project_data.get('summary', '')}\n")
-            context_parts.append(f"文风：{project_data.get('style', '通俗')}\n\n")
+            if project_data.get('style'):
+                context_parts.append(f"文风要求：{project_data.get('style')}\n")
+            context_parts.append("\n")
 
-        # 人物信息
+        # 人物信息（更详细的展示）
         if characters:
-            context_parts.append(f"## 人物设定\n")
-            for char in characters[:5]:  # 限制人物数量
-                context_parts.append(f"- {char.get('name')}：{char.get('personality', '')}\n")
+            context_parts.append(f"## 👥 主要人物\n")
+            for char in characters[:10]:  # 限制人物数量
+                char_info = f"**{char.get('name')}**"
+                if char.get('role'):
+                    role_map = {
+                        'protagonist': '主角',
+                        'antagonist': '反派',
+                        'supporting': '配角',
+                        'minor': '次要角色'
+                    }
+                    role = role_map.get(char.get('role'), char.get('role'))
+                    char_info += f"（{role}）"
+
+                char_info += "\n"
+
+                if char.get('appearance'):
+                    char_info += f"- 外貌：{char.get('appearance')}\n"
+                if char.get('personality'):
+                    char_info += f"- 性格：{char.get('personality')}\n"
+                if char.get('identity'):
+                    char_info += f"- 身份：{char.get('identity')}\n"
+                if char.get('core_motivation'):
+                    char_info += f"- 核心动机：{char.get('core_motivation')}\n"
+
+                context_parts.append(char_info)
             context_parts.append("\n")
 
-        # 世界观设定
+        # 世界观设定（更详细的展示）
         if world_settings:
-            context_parts.append(f"## 世界观设定\n")
-            for setting in world_settings[:3]:  # 限制设定数量
-                context_parts.append(f"- {setting.get('name')}：{setting.get('description', '')}\n")
+            context_parts.append(f"## 🌍 世界观设定\n")
+            # 按类型分组
+            grouped_settings = {}
+            for setting in world_settings[:20]:  # 限制设定数量
+                setting_type = setting.get('type', 'other')
+                if setting_type not in grouped_settings:
+                    grouped_settings[setting_type] = []
+                grouped_settings[setting_type].append(setting)
+
+            # 中文类型映射
+            type_map = {
+                'era': '时代背景',
+                'region': '地域设定',
+                'rule': '核心规则',
+                'culture': '文化习俗',
+                'power': '权力结构',
+                'location': '重要地点',
+                'faction': '势力组织',
+                'item': '重要物品',
+                'event': '历史事件'
+            }
+
+            for setting_type, settings in grouped_settings.items():
+                type_name = type_map.get(setting_type, setting_type)
+                context_parts.append(f"\n### {type_name}\n")
+                for setting in settings:
+                    context_parts.append(f"- **{setting.get('name', '未命名')}**")
+                    if setting.get('is_core'):
+                        context_parts.append(" ⭐[核心规则]")
+                    context_parts.append("\n")
+                    if setting.get('description'):
+                        context_parts.append(f"  {setting.get('description')}\n")
+
             context_parts.append("\n")
+
+        # 添加创作提示
+        context_parts.append("\n## ✍️ 创作要求\n")
+        context_parts.append("1. 严格遵循以上人物设定和世界观规则\n")
+        context_parts.append("2. 保持人物性格一致，言行符合其设定\n")
+        context_parts.append("3. 尊重核心规则，不要自相矛盾\n")
+        context_parts.append("4. 细节描写要丰富，对话要符合人物性格\n")
+        context_parts.append("5. 根据用户提示词进行创作，但要结合设定\n")
 
         return "".join(context_parts)
 
@@ -74,6 +140,18 @@ class AIService:
 """
 
         try:
+            # 计算max_tokens - 中文通常 1 token ≈ 0.7-1 个中文字符
+            # 使用 word_count * 3.5 确保达到目标字数
+            # 注意：智谱AI推理模型需要额外的推理tokens（约600-1000），所以至少要预留3000以上
+            max_tokens = min(max(int(word_count * 3.5), 3000), 16000)
+
+            logger.info(f"===== 文本生成调用参数 =====")
+            logger.info(f"模型: {settings.AI_MODEL}")
+            logger.info(f"word_count: {word_count}")
+            logger.info(f"max_tokens: {max_tokens}")
+            logger.info(f"\n===== 系统提示词 =====\n{system_prompt}\n")
+            logger.info(f"\n===== 用户提示词 =====\n{prompt}\n")
+
             response = self.client.chat.completions.create(
                 model=settings.AI_MODEL,
                 messages=[
@@ -81,10 +159,62 @@ class AIService:
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.8,
-                max_tokens=word_count * 2
+                max_tokens=max_tokens,
+                extra_body={
+                    "thinking": {
+                        "type": "disabled"  # 关闭思考模式，直接生成内容
+                    }
+                }
             )
-            return response.choices[0].message.content
+
+            logger.info(f"===== 文本生成响应 =====")
+            logger.info(f"响应对象类型: {type(response)}")
+            logger.info(f"响应对象 (str): {str(response)[:1000]}")
+
+            # 尝试转换响应为字典以查看完整结构
+            try:
+                if hasattr(response, 'model_dump'):
+                    response_dict = response.model_dump()
+                    logger.info(f"响应有 choices: {len(response_dict.get('choices', []))}")
+                    if response_dict.get('choices'):
+                        first_choice = response_dict['choices'][0]
+                        logger.info(f"第一个choice的keys: {first_choice.keys()}")
+                        if 'message' in first_choice:
+                            message_obj = first_choice['message']
+                            logger.info(f"message对象的keys: {message_obj.keys() if isinstance(message_obj, dict) else 'not a dict'}")
+                            logger.info(f"message.content存在: {'content' in message_obj if isinstance(message_obj, dict) else hasattr(message_obj, 'content')}")
+                            if isinstance(message_obj, dict) and 'content' in message_obj:
+                                logger.info(f"message.content的值: {repr(message_obj['content'][:200]) if message_obj['content'] else 'None'}")
+            except Exception as e:
+                logger.warning(f"无法转换响应为字典: {e}")
+
+            if hasattr(response, 'usage') and response.usage:
+                logger.info(f"prompt_tokens: {response.usage.prompt_tokens}")
+                logger.info(f"completion_tokens: {response.usage.completion_tokens}")
+                logger.info(f"total_tokens: {response.usage.total_tokens}")
+
+            # 检查choices结构
+            logger.info(f"choices数量: {len(response.choices)}")
+            logger.info(f"第一个choice类型: {type(response.choices[0])}")
+            logger.info(f"第一个choice的message类型: {type(response.choices[0].message)}")
+
+            content = response.choices[0].message.content
+
+            # 如果 content 为空，尝试从 reasoning_content 获取（智谱推理模型）
+            if not content and hasattr(response.choices[0].message, 'reasoning_content'):
+                reasoning = response.choices[0].message.reasoning_content
+                if reasoning:
+                    logger.warning(f"content为空，尝试从reasoning_content获取内容（长度：{len(reasoning)}）")
+                    # 推理内容可能需要进一步处理，这里先作为后备
+                    content = reasoning
+                    logger.info(f"注意：使用的是推理内容而非最终答案")
+
+            logger.info(f"生成内容长度: {len(content) if content else 0}")
+            logger.info(f"生成内容前200字符: {content[:200] if content else '空内容'}")
+
+            return content
         except Exception as e:
+            logger.error(f"文本生成失败: {str(e)}")
             raise Exception(f"AI生成失败: {str(e)}")
 
     def generate_outline(
@@ -109,7 +239,12 @@ class AIService:
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.7,
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
+                extra_body={
+                    "thinking": {
+                        "type": "disabled"  # 关闭思考模式
+                    }
+                }
             )
 
             result = response.choices[0].message.content
@@ -133,7 +268,12 @@ class AIService:
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.7,
-                max_tokens=target_words * 2
+                max_tokens=target_words * 2,
+                extra_body={
+                    "thinking": {
+                        "type": "disabled"  # 关闭思考模式
+                    }
+                }
             )
             return response.choices[0].message.content
         except Exception as e:
@@ -213,7 +353,12 @@ class AIService:
                         {"role": "user", "content": analysis_prompt}
                     ],
                     temperature=0.3,
-                    response_format={"type": "json_object"}
+                    response_format={"type": "json_object"},
+                    extra_body={
+                        "thinking": {
+                            "type": "disabled"  # 关闭思考模式
+                        }
+                    }
                 )
 
                 # 解析AI响应
@@ -502,6 +647,13 @@ class AIService:
             user_prompt = self._build_user_prompt(request)
 
             try:
+                # 计算max_tokens
+                # 中文通常 1 token ≈ 0.7-1 个中文字符
+                # 为了确保达到目标字数，使用 word_count * 3.5
+                # 注意：智谱AI推理模型需要额外的推理tokens（约600-1000），所以至少要预留2000以上
+                word_count = request.get('word_count', 2000)
+                max_tokens = min(max(int(word_count * 3.5), 3000), 16000)
+
                 response = self.client.chat.completions.create(
                     model=settings.AI_MODEL,
                     messages=[
@@ -509,11 +661,17 @@ class AIService:
                         {"role": "user", "content": user_prompt}
                     ],
                     temperature=temperature,
-                    max_tokens=request.get('word_count', 2000) * 2
+                    max_tokens=max_tokens,
+                    extra_body={
+                        "thinking": {
+                            "type": "disabled"  # 关闭思考模式，直接生成内容
+                        }
+                    }
                 )
 
                 content = response.choices[0].message.content
-                summary = self._generate_version_summary(content)
+                # 不在生成版本时生成摘要，只在保存时生成，避免多次调用AI
+                summary = ""  # 留空，保存时再生成
 
                 versions.append({
                     "version_id": str(uuid.uuid4()),
@@ -594,6 +752,21 @@ class AIService:
                 # 模拟异步生成（实际API调用是同步的，这里用asyncio.sleep来模拟）
                 await asyncio.sleep(0.5)  # 模拟生成耗时
 
+                # 计算max_tokens
+                # 中文通常 1 token ≈ 0.7-1 个中文字符
+                # 为了确保达到目标字数，使用 word_count * 3.5
+                # 注意：智谱AI推理模型需要额外的推理tokens（约600-1000），所以至少要预留2000以上
+                word_count = request.get('word_count', 2000)
+                max_tokens = min(max(int(word_count * 3.5), 3000), 16000)
+
+                # 打印调试日志
+                logger.info(f"===== AI生成调用参数 =====")
+                logger.info(f"模型: {settings.AI_MODEL}")
+                logger.info(f"temperature: {temperature}")
+                logger.info(f"max_tokens: {max_tokens}")
+                logger.info(f"\n===== 系统提示词 =====\n{system_prompt}\n")
+                logger.info(f"\n===== 用户提示词 =====\n{user_prompt}\n")
+
                 response = self.client.chat.completions.create(
                     model=settings.AI_MODEL,
                     messages=[
@@ -601,11 +774,108 @@ class AIService:
                         {"role": "user", "content": user_prompt}
                     ],
                     temperature=temperature,
-                    max_tokens=request.get('word_count', 2000) * 2
+                    max_tokens=max_tokens,
+                    extra_body={
+                        "thinking": {
+                            "type": "disabled"  # 关闭思考模式，直接生成内容
+                        }
+                    }
                 )
 
-                content = response.choices[0].message.content
-                summary = self._generate_version_summary(content)
+                logger.info(f"===== AI响应 =====")
+                logger.info(f"响应对象类型: {type(response)}")
+                logger.info(f"choices 数量: {len(response.choices)}")
+
+                # 记录 usage 信息
+                if hasattr(response, 'usage'):
+                    logger.info(f"usage: {response.usage}")
+                    if response.usage:
+                        logger.info(f"prompt_tokens: {response.usage.prompt_tokens}")
+                        logger.info(f"completion_tokens: {response.usage.completion_tokens}")
+                        logger.info(f"total_tokens: {response.usage.total_tokens}")
+
+                # 尝试将响应转换为字典以查看完整结构
+                try:
+                    if hasattr(response, 'model_dump'):
+                        response_dict = response.model_dump()
+                        logger.info(f"响应字典结构 (model_dump): {response_dict}")
+                    elif hasattr(response, 'dict'):
+                        response_dict = response.dict()
+                        logger.info(f"响应字典结构 (dict): {response_dict}")
+                except Exception as dump_error:
+                    logger.warning(f"无法转换为字典: {dump_error}")
+
+                logger.info(f"响应对象 (str): {str(response)}")
+
+                if len(response.choices) > 0:
+                    choice = response.choices[0]
+                    logger.info(f"choice 对象: {choice}")
+
+                    # 尝试将 choice 转换为字典
+                    try:
+                        if hasattr(choice, 'model_dump'):
+                            choice_dict = choice.model_dump()
+                            logger.info(f"choice 完整字典结构: {choice_dict}")
+                        elif hasattr(choice, 'dict'):
+                            choice_dict = choice.dict()
+                            logger.info(f"choice 完整字典结构: {choice_dict}")
+                    except Exception as dump_error:
+                        logger.warning(f"无法将 choice 转换为字典: {dump_error}")
+                    logger.info(f"message 对象: {choice.message}")
+                    logger.info(f"message.content 类型: {type(choice.message.content)}")
+                    logger.info(f"message.content 长度: {len(choice.message.content) if choice.message.content else 0}")
+
+                    content = choice.message.content
+
+                    # 如果 content 是 None 或空，尝试其他字段
+                    if not content:
+                        logger.warning("message.content 为空，尝试其他字段...")
+                        logger.info(f"choice 的所有属性: {[attr for attr in dir(choice) if not attr.startswith('_')]}")
+                        logger.info(f"message 的所有属性: {[attr for attr in dir(choice.message) if not attr.startswith('_')]}")
+
+                        # 检查智谱AI推理模型的特殊字段
+                        # 1. reasoning_content - 推理内容
+                        if hasattr(choice.message, 'reasoning_content'):
+                            content = choice.message.reasoning_content
+                            logger.info(f"从 message.reasoning_content 获取内容，长度: {len(content) if content else 0}")
+
+                        # 2. text 字段
+                        elif hasattr(choice, 'text'):
+                            content = choice.text
+                            logger.info(f"从 choice.text 获取内容，长度: {len(content) if content else 0}")
+
+                        # 3. message.text 字段
+                        elif hasattr(choice.message, 'text'):
+                            content = choice.message.text
+                            logger.info(f"从 message.text 获取内容，长度: {len(content) if content else 0}")
+
+                        # 4. 检查原始字典
+                        elif 'choice_dict' in locals() and isinstance(choice_dict, dict):
+                            logger.info(f"尝试从字典中查找内容字段")
+                            logger.info(f"choice_dict keys: {choice_dict.keys()}")
+                            if 'message' in choice_dict and isinstance(choice_dict['message'], dict):
+                                msg_dict = choice_dict['message']
+                                logger.info(f"message_dict keys: {msg_dict.keys()}")
+                                for key in ['content', 'text', 'reasoning_content', 'body']:
+                                    if key in msg_dict and msg_dict[key]:
+                                        content = msg_dict[key]
+                                        logger.info(f"从 message.{key} 获取内容，长度: {len(content) if content else 0}")
+                                        break
+
+                        # 5. 最后尝试：直接打印原始响应
+                        else:
+                            logger.error("未找到任何内容字段！")
+                            logger.info(f"原始choice对象: {choice}")
+                            logger.info(f"原始message对象: {choice.message}")
+
+                    logger.info(f"最终生成内容长度: {len(content) if content else 0}")
+                    logger.info(f"最终生成内容前200字符: {content[:200] if content else '空内容'}")
+                else:
+                    logger.error("响应中没有任何 choices!")
+                    content = ""
+
+                # 不在生成版本时生成摘要，只在保存时生成，避免多次调用AI
+                summary = ""  # 留空，保存时再生成
 
                 # 发送版本生成完成事件
                 version_progress = ((i + 1) / version_count) * 100
@@ -626,6 +896,13 @@ class AIService:
                 })
 
             except Exception as e:
+                # 打印详细错误日志
+                logger.error(f"===== AI生成失败 =====")
+                logger.error(f"版本序号: {version_number}")
+                logger.error(f"错误类型: {type(e).__name__}")
+                logger.error(f"错误信息: {str(e)}")
+                logger.error(f"错误详情: {repr(e)}")
+
                 # 如果某个版本生成失败，创建空版本并发送错误事件
                 await send_websocket_message(task_id, "error", {
                     "message": f"第{version_number}个版本生成失败: {str(e)}",
@@ -736,8 +1013,55 @@ class AIService:
 
         if characters:
             context_parts.append(f"\n## 人物设定\n")
+            # 按角色类型排序，主角排在前面
+            role_priority = {
+                'protagonist': 0,  # 主角
+                'supporting': 1,   # 配角
+                'antagonist': 2,   # 反派
+                'minor': 3         # 次要角色
+            }
+            characters.sort(key=lambda c: role_priority.get(c.role.value if hasattr(c.role, 'value') else c.role, 99))
+
             for char in characters:
-                context_parts.append(f"- {char.name}：{char.personality or '暂无描述'}\n")
+                # 角色类型中文映射
+                role_map = {
+                    'protagonist': '【主角】',
+                    'antagonist': '【反派】',
+                    'supporting': '【配角】',
+                    'minor': '【次要角色】'
+                }
+                role_label = role_map.get(char.role.value if hasattr(char.role, 'value') else char.role, '')
+
+                # 构建详细的人物信息
+                char_info = f"- {char.name} {role_label}\n"
+
+                # 基本信息
+                if char.age or char.gender:
+                    basic_info = []
+                    if char.gender:
+                        basic_info.append(char.gender)
+                    if char.age:
+                        basic_info.append(f"{char.age}岁")
+                    if basic_info:
+                        char_info += f"  基本信息：{', '.join(basic_info)}\n"
+
+                # 外貌
+                if char.appearance:
+                    char_info += f"  外貌：{char.appearance}\n"
+
+                # 身份
+                if char.identity:
+                    char_info += f"  身份：{char.identity}\n"
+
+                # 性格
+                if char.personality:
+                    char_info += f"  性格：{char.personality}\n"
+
+                # 核心动机
+                if char.core_motivation:
+                    char_info += f"  核心动机：{char.core_motivation}\n"
+
+                context_parts.append(char_info)
                 context_used["characters"].append(char.name)
 
         # 添加世界观设定
@@ -793,7 +1117,8 @@ class AIService:
                 context_parts.append(f"POV人物：{pov_character.name}\n")
 
         # 添加其他要求
-        word_count = request.get('word_count', 2000)
+        # 优先使用请求中的word_count，否则使用项目的默认设置
+        word_count = request.get('word_count') or project.target_words_per_chapter or 2000
         context_parts.append(f"\n## 生成要求\n")
         context_parts.append(f"1. 目标字数：约{word_count}字\n")
         context_parts.append(f"2. 章节序号：第{chapter_number}章\n")
@@ -808,33 +1133,37 @@ class AIService:
 
     def _build_system_prompt(self, request: dict, context: str) -> str:
         """
-        构建系统提示词
+        构建系统提示词 - 使用结构化模板
 
         Args:
-            request: 请求参数
-            context: 上下文字符串
+            request: 请求参数（包含项目信息）
+            context: 上下文字符串（包含人物、世界观等，已格式化）
 
         Returns:
             系统提示词
         """
-        base_prompt = f"""你是一个专业的小说创作助手。根据以下设定和用户要求，创作高质量的小说内容。
+        # 获取风格强度，用于调整文风强调程度
+        style_intensity = request.get('style_intensity', 70)
+
+        system_prompt = f"""你是一个专业的小说创作助手。请严格按照以下设定创作高质量的小说内容。
 
 {context}
 
-创作规则：
-1. 严格遵循设定的世界观规则和人物性格
-2. 保持文风的一致性
-3. 确保情节逻辑连贯
-4. 适当运用对话、心理活动、环境描写等叙事技巧
-5. 避免出现与设定矛盾的内容
+【创作规则（必须遵守）】
+1. 所有出场人物必须来自上述人物设定，不得擅自添加或修改姓名。
+2. 人物性格、语言风格、关系必须与设定一致。
+3. 情节推进要自然，避免突兀转折。
+4. 综合运用对话、动作、心理描写和环境描写。
+5. 每章结尾可适当留白或制造悬念，但要保持整体故事的连贯性。
+6. **文风要求（重要）**：必须严格遵循上述"文风"设定，这决定了整部作品的语言风格和叙述基调。风格匹配度要求：{style_intensity}%。
 
-请创作出引人入胜、符合设定的章节内容。"""
+请严格遵守以上设定，创作出引人入胜、符合要求的章节内容。"""
 
-        return base_prompt
+        return system_prompt
 
     def _build_user_prompt(self, request: dict) -> str:
         """
-        构建用户提示词
+        构建用户提示词 - 使用结构化续写/首章模板
 
         Args:
             request: 请求参数
@@ -844,20 +1173,144 @@ class AIService:
         """
         chapter_number = request['chapter_number']
         word_count = request.get('word_count', 2000)
+        generation_mode = request.get('mode', 'standard')
+        prompt_text = request.get('prompt', '')
+        plot_direction = request.get('plot_direction', '')
+        previous_summary = request.get('previous_chapter_summary', '')
 
-        prompt = f"请创作第{chapter_number}章，目标字数约{word_count}字。"
+        # 获取主角信息（从上下文中解析）
+        protagonist_info = ""
+        if request.get('featured_characters'):
+            # featured_characters 是字符ID列表，需要从上下文中找到主角
+            # 这里简化处理，假设已经在上下文中标注了【主角】
+            protagonist_info = "主角姓名请查看人物设定"
 
-        if request.get('continue_mode'):
-            prompt += f"根据指定的续写模式和情节方向，创作后续内容。"
+        prompt_parts = []
+
+        if generation_mode == 'first_chapter':
+            # ========== 首次生成模板 ==========
+            prompt_parts.extend([
+                "# 首次生成任务",
+                "",
+                f"## 章节信息",
+                f"- 章节序号：第{chapter_number}章",
+                f"- 目标字数：约{word_count}字",
+                "",
+                "## 首章要点",
+                "1. 引入主角，展示其基本特征（外貌、性格、身份、背景）",
+                "2. 建立故事背景和世界观（时代、地点、社会氛围）",
+                "3. 设置初始情境或引发事件，推动故事发展",
+                "4. 营造故事基调，吸引读者继续阅读",
+                "",
+                "## 创作建议",
+                "- 避免大段背景说明，通过情节和细节自然展现设定",
+                "- 开头要吸引人，可设置悬念、冲突或引人入胜的场景",
+                "- 确保主角在第1章就有足够的戏份和表现",
+                "- 结尾可适当留白或制造轻微悬念",
+                "",
+                "## 输出要求",
+                f"请直接输出第{chapter_number}章正文，不需要额外说明。章节开头标注\"第{chapter_number}章\"，正文约{word_count}字。"
+            ])
+
+            # 添加用户自定义要求
+            if prompt_text:
+                prompt_parts.extend([
+                    "",
+                    f"## 用户特别要求",
+                    prompt_text
+                ])
+
+        elif generation_mode == 'continue':
+            # ========== 续写任务模板 ==========
+            prompt_parts.extend([
+                "# 续写任务",
+                "",
+                "## 本次任务",
+                f"- 章节序号：第{chapter_number}章",
+                f"- 目标字数：约{word_count}字",
+                "- 衔接方式：紧接上一章结尾",
+                f"- 情节方向：{plot_direction if plot_direction else '根据前文自然发展'}",
+                "- 情感基调：根据故事情节自然呈现",
+                "",
+                "## 续写要点",
+                "1. 承接上一章结尾的场景和情节，确保时间和空间连续性",
+                "2. 根据前文情节发展方向，推进故事",
+                "3. 维持人物性格和行为逻辑的一致性",
+                "4. 创造新的情节冲突或转折，保持故事张力",
+                "5. 适当运用对话、心理活动、动作描写和环境渲染",
+                "",
+                "## 重要提醒",
+                f"- 主角姓名：{protagonist_info}",
+                "- 其他人物：请查看人物设定，确保姓名和性格一致",
+                "- 禁止添加人物设定之外的新角色",
+                "- 注意前文已埋下的伏笔和悬念",
+                "",
+                "## 输出要求",
+                f"请直接输出第{chapter_number}章正文，不需要额外说明。章节开头标注\"第{chapter_number}章\"，正文约{word_count}字。"
+            ])
+
+            # 添加前文总结
+            if previous_summary:
+                prompt_parts.insert(
+                    4,  # 插在"本次任务"和"衔接方式"之间
+                    f"- 前文总结：{previous_summary[:300]}..." if len(previous_summary) > 300 else f"- 前文总结：{previous_summary}"
+                )
+
+            # 添加用户自定义要求
+            if prompt_text:
+                prompt_parts.extend([
+                    "",
+                    f"## 用户特别要求",
+                    prompt_text
+                ])
+
+        else:
+            # ========== 标准生成模板 ==========
+            prompt_parts.extend([
+                f"# 创作第{chapter_number}章",
+                "",
+                f"## 章节信息",
+                f"- 章节序号：第{chapter_number}章",
+                f"- 目标字数：约{word_count}字",
+                "",
+                "## 创作要点",
+                "1. 情节完整，有起承转合",
+                "2. 人物性格鲜明，行为符合逻辑",
+                "3. 场景描写生动，有画面感",
+                "4. 对话自然，推动情节发展",
+                "",
+                "## 输出要求",
+                f"请直接输出第{chapter_number}章正文，章节开头标注\"第{chapter_number}章\"，正文约{word_count}字。"
+            ])
+
+            # 添加用户自定义要求
+            if prompt_text:
+                prompt_parts.extend([
+                    "",
+                    f"## 用户特别要求",
+                    prompt_text
+                ])
+
+        prompt = "\n".join(prompt_parts)
+
+        logger.info(f"===== 构建的用户提示词 =====")
+        logger.info(f"章节号: {chapter_number}")
+        logger.info(f"生成模式: {generation_mode}")
+        logger.info(f"目标字数: {word_count}")
+        logger.info(f"情节方向: {plot_direction}")
+        logger.info(f"用户提示: {prompt_text}")
+        logger.info(f"有前文总结: {bool(previous_summary)}")
+        logger.info(f"完整提示词:\n{prompt}\n")
 
         return prompt
 
-    def _generate_version_summary(self, content: str) -> str:
+    def generate_chapter_summary(self, content: str, title: str = "") -> str:
         """
-        从内容生成摘要
+        使用AI生成章节摘要
 
         Args:
             content: 章节内容
+            title: 章节标题（可选）
 
         Returns:
             内容摘要
@@ -865,12 +1318,53 @@ class AIService:
         if not content or len(content) < 100:
             return "内容过短，无法生成摘要"
 
-        # 简单实现：取开头100字
-        summary = content[:100].replace('\n', ' ').strip()
-        if len(summary) > 100:
-            summary = summary[:97] + "..."
+        if not self.client:
+            # 如果AI服务未配置，使用简单截取
+            summary = content[:200].replace('\n', ' ').strip()
+            if len(summary) > 200:
+                summary = summary[:197] + "..."
+            return summary
 
-        return summary
+        try:
+            # 使用AI生成适合续写的摘要
+            prompt = f"""请为以下小说章节生成一段适合续写的剧情总结（200-300字）：
+
+章节标题：{title}
+章节内容：
+{content[:2000]}
+
+要求：
+1. **结尾状态**：本章结束时，主要人物在哪里、在做什么、情绪状态如何
+2. **关键转折**：本章发生的重要事件和转折点，特别是对后续剧情有影响的内容
+3. **未解事项**：本章提出但未解决的问题、悬念、伏笔
+4. **人物关系**：人物关系的变化，特别是冲突、 alliances、情感变化
+5. **续写提示**：基于本章结尾，下一章可能的情节方向
+
+请用叙述性语言写出，重点放在"结尾状态"和"续写提示"上，让下一章的作者能够自然衔接。"""
+
+            response = self.client.chat.completions.create(
+                model=settings.AI_MODEL,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.5,
+                max_tokens=500,
+                extra_body={
+                    "thinking": {
+                        "type": "disabled"  # 关闭思考模式
+                    }
+                }
+            )
+
+            summary = response.choices[0].message.content.strip()
+            return summary
+        except Exception as e:
+            # AI生成失败时，使用简单截取
+            logger.warning(f"AI生成摘要失败: {str(e)}，使用简单截取")
+            summary = content[:200].replace('\n', ' ').strip()
+            if len(summary) > 200:
+                summary = summary[:197] + "..."
+            return summary
 
 
 # 全局AI服务实例

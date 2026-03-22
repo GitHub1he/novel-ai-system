@@ -2,18 +2,32 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List
 from app.core.database import get_db
+from app.core.dependencies import get_current_user
 from app.core.exception_handler import BusinessException, NotFoundException
+from app.models.user import User
 from app.core.logger import logger
 from app.models.character import Character
+from app.core.permissions import get_project, require_project, get_character, require_character
 from app.schemas.character import CharacterCreate, CharacterUpdate, CharacterResponse, CharacterListResponse
 
 router = APIRouter(prefix="/characters", tags=["人物管理"])
 
 
 @router.post("/create", summary="创建人物")
-def create_character(character: CharacterCreate, user_id: int = 1, db: Session = Depends(get_db)):
-    """创建新人物"""
+def create_character(
+    character: CharacterCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    创建新人物
+    - 管理员可在任何项目中创建人物
+    - 普通用户只能在自己的项目中创建人物
+    """
     try:
+        # 验证项目权限（统一权限检查）
+        project = require_project(character.project_id, current_user, db)
+
         db_character = Character(**character.model_dump())
         db.add(db_character)
         db.commit()
@@ -56,8 +70,16 @@ def create_character(character: CharacterCreate, user_id: int = 1, db: Session =
 
 
 @router.get("/list/{project_id}", summary="获取项目人物列表")
-def get_characters(project_id: int, user_id: int = 1, db: Session = Depends(get_db)):
-    """获取项目的所有人物"""
+def get_characters(
+    project_id: int,
+    project = Depends(get_project),
+    db: Session = Depends(get_db)
+):
+    """
+    获取项目的所有人物
+    - 管理员可访问任何项目的人物
+    - 普通用户只能访问自己项目的人物
+    """
     try:
         characters = db.query(Character).filter(
             Character.project_id == project_id
@@ -90,6 +112,8 @@ def get_characters(project_id: int, user_id: int = 1, db: Session = Depends(get_
                 "final_state": c.final_state,
                 "speech_style": c.speech_style,
                 "sample_dialogue": c.sample_dialogue,
+                "character_arcs": c.character_arcs,
+                "voice_styles": c.voice_styles,
                 "avatar": c.avatar,
                 "appearance_count": c.appearance_count,
                 "created_at": c.created_at.isoformat() if c.created_at else None,
@@ -110,17 +134,16 @@ def get_characters(project_id: int, user_id: int = 1, db: Session = Depends(get_
 
 
 @router.get("/detail/{character_id}", summary="获取人物详情")
-def get_character(character_id: int, user_id: int = 1, db: Session = Depends(get_db)):
-    """获取人物详情"""
+def get_character_detail(
+    character = Depends(get_character)
+):
+    """
+    获取人物详情
+    - 管理员可访问任何人物
+    - 普通用户只能访问自己项目的人物
+    """
     try:
-        character = db.query(Character).filter(
-            Character.id == character_id
-        ).first()
-
-        if not character:
-            raise NotFoundException(f"人物 {character_id} 不存在")
-
-        logger.info(f"获取人物详情成功: {character.name} (ID: {character_id})")
+        logger.info(f"获取人物详情成功: {character.name} (ID: {character.id})")
 
         return {
             "code": 200,
@@ -144,6 +167,8 @@ def get_character(character_id: int, user_id: int = 1, db: Session = Depends(get
                 "final_state": character.final_state,
                 "speech_style": character.speech_style,
                 "sample_dialogue": character.sample_dialogue,
+                "character_arcs": character.character_arcs,
+                "voice_styles": character.voice_styles,
                 "avatar": character.avatar,
                 "appearance_count": character.appearance_count,
                 "created_at": character.created_at.isoformat() if character.created_at else None,
@@ -158,20 +183,16 @@ def get_character(character_id: int, user_id: int = 1, db: Session = Depends(get
 
 @router.post("/update/{character_id}", summary="更新人物")
 def update_character(
-    character_id: int,
     character_update: CharacterUpdate,
-    user_id: int = 1,
+    character = Depends(require_character),
     db: Session = Depends(get_db)
 ):
-    """更新人物信息"""
+    """
+    更新人物信息
+    - 管理员可修改任何人物
+    - 普通用户只能修改自己项目的人物
+    """
     try:
-        character = db.query(Character).filter(
-            Character.id == character_id
-        ).first()
-
-        if not character:
-            raise NotFoundException(f"人物 {character_id} 不存在")
-
         # 更新人物信息
         update_data = character_update.model_dump(exclude_unset=True)
         for field, value in update_data.items():
@@ -180,7 +201,7 @@ def update_character(
         db.commit()
         db.refresh(character)
 
-        logger.info(f"更新人物成功: {character.name} (ID: {character_id})")
+        logger.info(f"更新人物成功: {character.name} (ID: {character.id})")
 
         return {
             "code": 200,
@@ -204,6 +225,8 @@ def update_character(
                 "final_state": character.final_state,
                 "speech_style": character.speech_style,
                 "sample_dialogue": character.sample_dialogue,
+                "character_arcs": character.character_arcs,
+                "voice_styles": character.voice_styles,
                 "avatar": character.avatar,
                 "appearance_count": character.appearance_count,
                 "created_at": character.created_at.isoformat() if character.created_at else None,
@@ -219,21 +242,21 @@ def update_character(
 
 
 @router.post("/del/{character_id}", summary="删除人物")
-def delete_character(character_id: int, user_id: int = 1, db: Session = Depends(get_db)):
-    """删除人物"""
+def delete_character(
+    character = Depends(require_character),
+    db: Session = Depends(get_db)
+):
+    """
+    删除人物
+    - 管理员可删除任何人物
+    - 普通用户只能删除自己项目的人物
+    """
     try:
-        character = db.query(Character).filter(
-            Character.id == character_id
-        ).first()
-
-        if not character:
-            raise NotFoundException(f"人物 {character_id} 不存在")
-
         character_name = character.name
         db.delete(character)
         db.commit()
 
-        logger.info(f"删除人物成功: {character_name} (ID: {character_id})")
+        logger.info(f"删除人物成功: {character_name} (ID: {character.id})")
 
         return {
             "code": 200,

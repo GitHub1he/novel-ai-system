@@ -11,6 +11,7 @@ const Dashboard = () => {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [modalVisible, setModalVisible] = useState(false)
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10 })
   const [form] = Form.useForm()
 
   // 常见小说类型选项
@@ -45,10 +46,21 @@ const Dashboard = () => {
     { value: '其他', label: '其他' },
   ]
 
-  const fetchProjects = async () => {
+  const fetchProjects = async (page = 1, pageSize = 10) => {
     setLoading(true)
     try {
-      const response = await projectApi.list()
+      const response = await projectApi.list({
+        skip: (page - 1) * pageSize,
+        limit: pageSize
+      })
+
+      // 调试日志
+      console.log('=== API 响应 ===')
+      console.log('完整响应:', response)
+      console.log('业务状态码:', response.data.code)
+      console.log('项目数量:', response.data.data?.total)
+      console.log('项目列表:', response.data.data?.projects)
+
       // 检查业务状态码
       if (response.data.code !== 200) {
         message.error(response.data.message || '加载项目列表失败')
@@ -57,6 +69,7 @@ const Dashboard = () => {
       // 成功，设置数据
       setProjects(response.data.data.projects)
       setTotal(response.data.data.total)
+      setPagination({ current: page, pageSize })
     } catch (error: any) {
       // 网络错误
       console.error('加载项目列表失败:', error)
@@ -106,7 +119,7 @@ const Dashboard = () => {
       message.success('创建成功')
       setModalVisible(false)
       form.resetFields()
-      fetchProjects()
+      fetchProjects(1, pagination.pageSize)
     } catch (error: any) {
       // 网络错误或表单验证失败
       console.error('创建项目失败:', error)
@@ -126,7 +139,7 @@ const Dashboard = () => {
 
       // 成功
       message.success('删除成功')
-      fetchProjects()
+      fetchProjects(pagination.current, pagination.pageSize)
     } catch (error: any) {
       // 网络错误
       console.error('删除项目失败:', error)
@@ -225,7 +238,17 @@ const Dashboard = () => {
         dataSource={projects}
         rowKey="id"
         loading={loading}
-        pagination={{ total }}
+        pagination={{
+          current: pagination.current,
+          pageSize: pagination.pageSize,
+          total,
+          showSizeChanger: true,
+          showQuickJumper: true,
+          showTotal: (total) => `共 ${total} 条记录`,
+          onChange: (page, pageSize) => {
+            fetchProjects(page, pageSize)
+          }
+        }}
       />
 
       <Modal

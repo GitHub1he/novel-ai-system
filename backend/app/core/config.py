@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     ZHIPUAI_API_KEY: Optional[str] = None  # 智谱AI API密钥
     OPENAI_API_KEY: Optional[str] = None  # 保留兼容性
     OPENAI_API_BASE: str = "https://open.bigmodel.cn/api/paas/v4/"  # 智谱AI API端点
-    AI_MODEL: str = "GLM-4.7-Flash"  # 默认使用GLM-4 Flash（速度快、成本低）
+    AI_MODEL: str = "glm-4-flash"  # 默认使用GLM-4 Flash（速度快、成本低）
 
     # CORS配置
     BACKEND_CORS_ORIGINS: list = [

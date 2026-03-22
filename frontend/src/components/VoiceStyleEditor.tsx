@@ -50,7 +50,7 @@ const SCENARIO_OPTIONS = [
 ]
 
 const VoiceStyleEditor = ({ value = [], onChange }: VoiceStyleEditorProps) => {
-  const [styles, setStyles] = useState<VoiceStyle[]>(value)
+  const [styles, setStyles] = useState<VoiceStyle[]>(value || [])
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [importModalVisible, setImportModalVisible] = useState(false)
   const [importJsonText, setImportJsonText] = useState('')
@@ -65,7 +65,7 @@ const VoiceStyleEditor = ({ value = [], onChange }: VoiceStyleEditorProps) => {
     }
 
     if (!isUserEditingRef.current) {
-      setStyles(value || [])
+      setStyles((value || []).filter((item): item is VoiceStyle => item != null))
     }
   }, [value])
 

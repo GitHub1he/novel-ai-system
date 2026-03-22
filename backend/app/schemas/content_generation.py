@@ -8,6 +8,8 @@ class GenerationMode(str, Enum):
     SIMPLE = "simple"
     STANDARD = "standard"
     ADVANCED = "advanced"
+    FIRST_CHAPTER = "first_chapter"
+    CONTINUE = "continue"
 
 
 class TransitionType(str, Enum):

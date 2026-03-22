@@ -24,7 +24,20 @@
       "Bash(netstat:*)",
       "Bash(findstr:*)",
       "Bash(npm run)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(tsc:*)",
+      "Bash(npm install)",
+      "Bash(npm run dev:*)",
+      "Bash(docker-compose:*)",
+      "Bash(docker logs:*)",
+      "Bash(uvicorn:*)",
+      "Bash(for:*)",
+      "Bash(do taskkill //PID $pid //F)",
+      "Bash(done:*)",
+      "Bash(powershell:*)",
+      "Bash(npm install:*)",
+      "Bash(ping:*)",
+      "Bash(tasklist:*)"
     ]
   }
 }

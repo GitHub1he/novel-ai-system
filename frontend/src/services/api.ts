@@ -1,9 +1,9 @@
 import axios from 'axios'
-import type { User, Project, Chapter, PlotNode, WorldSetting, Character, ChapterGenerateRequest } from '../types'
+import type { User, Project, Chapter, PlotNode, WorldSetting, Character, ChapterGenerateRequest, AdminUser } from '../types'
 
 const api = axios.create({
   baseURL: '/api',
-  timeout: 10000,
+  timeout: 60000, // AI 生成需要更长时间，增加到 60 秒
 })
 
 // 请求拦截器
@@ -13,6 +13,12 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
+    // 调试日志
+    console.log('=== 发送 API 请求 ===')
+    console.log('URL:', config.url)
+    console.log('Method:', config.method)
+    console.log('Headers:', config.headers)
+    console.log('Token 存在:', !!token)
     return config
   },
   (error) => {
@@ -25,8 +31,15 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      // 清除token
       localStorage.removeItem('token')
-      window.location.href = '/login'
+      // 显示友好提示
+      const message = require('antd').message
+      message.warning('登录已过期，请重新登录')
+      // 延迟跳转，让用户看到提示
+      setTimeout(() => {
+        window.location.href = '/login'
+      }, 1000)
     }
     return Promise.reject(error)
   }
@@ -72,6 +85,9 @@ export const chapterApi = {
 
   update: (id: number, data: Partial<Chapter>) =>
     api.put<{ code: number; message: string; data: Chapter }>(`/chapters/${id}`, data),
+
+  delete: (id: number) =>
+    api.delete<{ code: number; message: string; data: null }>(`/chapters/${id}`),
 
   generate: (id: number, prompt: string) =>
     api.post<{ content: string; word_count: number }>(`/chapters/${id}/generate`, { prompt }),
@@ -126,6 +142,29 @@ export const plotNodeApi = {
 
   delete: (id: number) =>
     api.post<{ code: number; message: string; data: null }>(`/plot-nodes/${id}/delete`),
+}
+
+// 管理员API
+export const adminApi = {
+  // 获取所有用户
+  getUsers: (params?: { skip?: number; limit?: number }) =>
+    api.get<{ code: number; message: string; data: { users: AdminUser[]; total: number } }>('/admin/users', { params }),
+
+  // 切换用户管理员权限
+  toggleAdmin: (userId: number) =>
+    api.post<{ code: number; message: string; data: AdminUser }>(`/admin/users/${userId}/toggle-admin`),
+
+  // 启用/禁用用户
+  toggleActive: (userId: number) =>
+    api.post<{ code: number; message: string; data: AdminUser }>(`/admin/users/${userId}/toggle-active`),
+
+  // 获取所有项目
+  getAllProjects: (params?: { skip?: number; limit?: number }) =>
+    api.get<{ code: number; message: string; data: { projects: Project[]; total: number } }>('/admin/projects', { params }),
+
+  // 获取系统统计
+  getStats: () =>
+    api.get<{ code: number; message: string; data: { user_count: number; admin_count: number; project_count: number; chapter_count: number } }>('/admin/stats'),
 }
 
 // 上下文分析API

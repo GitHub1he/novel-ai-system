@@ -18,7 +18,7 @@ interface CharacterArcEditorProps {
 }
 
 const CharacterArcEditor = ({ value = [], onChange }: CharacterArcEditorProps) => {
-  const [arcs, setArcs] = useState<CharacterArc[]>(value)
+  const [arcs, setArcs] = useState<CharacterArc[]>(value || [])
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [importModalVisible, setImportModalVisible] = useState(false)
   const [importJsonText, setImportJsonText] = useState('')
@@ -33,7 +33,7 @@ const CharacterArcEditor = ({ value = [], onChange }: CharacterArcEditorProps) =
     }
 
     if (!isUserEditingRef.current) {
-      setArcs(value || [])
+      setArcs((value || []).filter((item): item is CharacterArc => item != null))
     }
   }, [value])
 

@@ -10,6 +10,10 @@ export interface User {
   created_at: string
 }
 
+export interface AdminUser extends User {
+  project_count: number
+}
+
 export interface Project {
   id: number
   user_id: number
@@ -50,6 +54,18 @@ export interface Character {
   final_state?: string
   speech_style?: string
   sample_dialogue?: string
+  character_arcs?: Array<{
+    period: string
+    event: string
+    before: string
+    after: string
+  }>
+  voice_styles?: Array<{
+    target: string
+    scenario: string
+    style: string
+    sample: string
+  }>
   avatar?: string
   appearance_count: number
   created_at: string

@@ -68,6 +68,8 @@ class CharacterUpdate(BaseModel):
     final_state: Optional[str] = None
     speech_style: Optional[str] = None
     sample_dialogue: Optional[str] = None
+    character_arcs: Optional[List[dict]] = None
+    voice_styles: Optional[List[dict]] = None
     avatar: Optional[str] = None
 
 
