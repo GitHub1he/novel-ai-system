@@ -25,7 +25,8 @@ class Chapter(Base):
     # 内容
     content = Column(Text, nullable=True)  # 章节内容
     outline = Column(Text, nullable=True)  # 大纲
-    summary = Column(Text, nullable=True)  # 内容摘要
+    summary = Column(Text, nullable=True)  # 续写摘要（用于生成下一章）
+    display_summary = Column(Text, nullable=True)  # 展示摘要（用于页面显示）
 
     # 设定关联
     pov_character_id = Column(Integer, ForeignKey("characters.id"), nullable=True)  # 视角人物

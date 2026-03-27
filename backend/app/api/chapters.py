@@ -115,6 +115,7 @@ def get_chapter_detail(
             "content": chapter.content,
             "outline": chapter.outline,
             "summary": chapter.summary,
+            "display_summary": chapter.display_summary,
             "pov_character_id": chapter.pov_character_id,
             "featured_characters": chapter.featured_characters,
             "locations": chapter.locations,
@@ -128,7 +129,7 @@ def get_chapter_detail(
 
 
 @router.put("/{chapter_id}", summary="更新章节")
-def update_chapter(
+async def update_chapter(
     chapter_data: ChapterUpdate,
     chapter: Chapter = Depends(require_chapter),
     db: Session = Depends(get_db)
@@ -155,14 +156,60 @@ def update_chapter(
         if chapter_data.status is not None:
             chapter.status = chapter_data.status
 
-        # 自动生成摘要（如果内容发生变化且用户没有手动提供摘要）
-        if content_changed and not chapter_data.summary and chapter.content:
+        # 自动生成摘要（每次保存都重新生成，并行调用）
+        if content_changed and chapter.content:
+            import asyncio
+            from concurrent.futures import ThreadPoolExecutor
+
+            loop = asyncio.get_event_loop()
+
             try:
-                summary = ai_service.generate_chapter_summary(chapter.content, chapter.title)
-                chapter.summary = summary
-                logger.info(f"自动生成摘要成功: 章节 {chapter.title}")
+                # 使用线程池并行执行两个同步的 AI 调用
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    # 提交两个任务
+                    summary_future = loop.run_in_executor(
+                        executor,
+                        ai_service.generate_chapter_summary,
+                        chapter.content,
+                        chapter.title
+                    )
+                    display_summary_future = loop.run_in_executor(
+                        executor,
+                        ai_service.generate_display_summary,
+                        chapter.content,
+                        chapter.title
+                    )
+
+                    # 并行等待结果
+                    summary, display_summary = await asyncio.gather(
+                        summary_future,
+                        display_summary_future
+                    )
+
+                # 更新摘要
+                if summary:
+                    chapter.summary = summary
+                    logger.info(f"自动生成续写摘要成功: 章节 {chapter.title}")
+                if display_summary:
+                    chapter.display_summary = display_summary
+                    logger.info(f"自动生成展示摘要成功: 章节 {chapter.title}")
+
             except Exception as e:
-                logger.warning(f"自动生成摘要失败: {str(e)}")
+                logger.warning(f"并行生成摘要失败，降级到串行执行: {str(e)}")
+                # 降级到串行执行
+                try:
+                    summary = ai_service.generate_chapter_summary(chapter.content, chapter.title)
+                    chapter.summary = summary
+                    logger.info(f"串行：生成续写摘要成功: 章节 {chapter.title}")
+                except Exception as e2:
+                    logger.warning(f"串行：生成续写摘要失败: {str(e2)}")
+
+                try:
+                    display_summary = ai_service.generate_display_summary(chapter.content, chapter.title)
+                    chapter.display_summary = display_summary
+                    logger.info(f"串行：生成展示摘要成功: 章节 {chapter.title}")
+                except Exception as e2:
+                    logger.warning(f"串行：生成展示摘要失败: {str(e2)}")
 
         db.commit()
         db.refresh(chapter)
@@ -182,6 +229,7 @@ def update_chapter(
                 "content": chapter.content,
                 "outline": chapter.outline,
                 "summary": chapter.summary,
+                "display_summary": chapter.display_summary,
                 "pov_character_id": chapter.pov_character_id,
                 "featured_characters": chapter.featured_characters,
                 "locations": chapter.locations,
@@ -225,6 +273,7 @@ def list_chapters(
             "title": chapter.title,
             "volume": chapter.volume,
             "summary": chapter.summary,
+            "display_summary": chapter.display_summary,
             "pov_character_id": chapter.pov_character_id,
             "status": chapter.status.value if hasattr(chapter.status, 'value') else str(chapter.status),
             "word_count": chapter.word_count,

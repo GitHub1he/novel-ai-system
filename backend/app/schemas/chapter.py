@@ -36,6 +36,7 @@ class ChapterUpdate(BaseModel):
     content: Optional[str] = None
     outline: Optional[str] = None
     summary: Optional[str] = None
+    display_summary: Optional[str] = None
     status: Optional[ChapterStatus] = None
 
 
@@ -50,6 +51,7 @@ class ChapterResponse(BaseModel):
     content: Optional[str] = None
     outline: Optional[str] = None
     summary: Optional[str] = None
+    display_summary: Optional[str] = None
     pov_character_id: Optional[int] = None
     featured_characters: Optional[str] = None
     locations: Optional[str] = None

@@ -81,6 +81,7 @@ export interface Chapter {
   content?: string
   outline?: string
   summary?: string
+  display_summary?: string  // 展示摘要（用于页面显示）
   pov_character_id?: number
   featured_characters?: string
   locations?: string

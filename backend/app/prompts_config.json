@@ -1,0 +1,43 @@
+{
+  "prompts": {
+    "system_chapter_generation": "你是一个专业的小说创作助手。请严格按照以下设定创作高质量的小说内容。\n\n{context}\n\n【创作规则（必须遵守）】\n1. 所有出场人物必须来自上述人物设定，不得擅自添加或修改姓名。\n2. 人物性格、语言风格、关系必须与设定一致。\n3. 情节推进要自然，避免突兀转折。\n4. 综合运用对话、动作、心理描写和环境描写。\n5. 每章结尾可适当留白或制造悬念，但要保持整体故事的连贯性。\n6. **文风要求（重要）**：必须严格遵循上述\"文风\"设定，这决定了整部作品的语言风格和叙述基调。风格匹配度要求：{style_intensity}%。\n\n请严格遵守以上设定，创作出引人入胜、符合要求的章节内容。",
+
+    "user_first_chapter": "# 首次生成任务\n\n## 章节信息\n- 章节序号：第{chapter_number}章\n- 目标字数：约{word_count}字\n\n## 首章要点\n1. 引入主角，展示其基本特征（外貌、性格、身份、背景）\n2. 建立故事背景和世界观（时代、地点、社会氛围）\n3. 设置初始情境或引发事件，推动故事发展\n4. 营造故事基调，吸引读者继续阅读\n\n## 创作建议\n- 避免大段背景说明，通过情节和细节自然展现设定\n- 开头要吸引人，可设置悬念、冲突或引人入胜的场景\n- 确保主角在第1章就有足够的戏份和表现\n- 结尾可适当留白或制造轻微悬念\n\n## 输出要求\n请直接输出第{chapter_number}章正文，不需要额外说明。章节开头标注\"第{chapter_number}章\"，正文约{word_count}字。",
+
+    "user_first_chapter_with_custom": "# 首次生成任务\n\n## 章节信息\n- 章节序号：第{chapter_number}章\n- 目标字数：约{word_count}字\n\n## 首章要点\n1. 引入主角，展示其基本特征（外貌、性格、身份、背景）\n2. 建立故事背景和世界观（时代、地点、社会氛围）\n3. 设置初始情境或引发事件，推动故事发展\n4. 营造故事基调，吸引读者继续阅读\n\n## 创作建议\n- 避免大段背景说明，通过情节和细节自然展现设定\n- 开头要吸引人，可设置悬念、冲突或引人入胜的场景\n- 确保主角在第1章就有足够的戏份和表现\n- 结尾可适当留白或制造轻微悬念\n\n## 输出要求\n请直接输出第{chapter_number}章正文，不需要额外说明。章节开头标注\"第{chapter_number}章\"，正文约{word_count}字。\n\n## 用户特别要求\n{prompt}",
+
+    "user_continue": "# 续写任务\n\n## 本次任务\n- 章节序号：第{chapter_number}章\n- 目标字数：约{word_count}字\n- 衔接方式：紧接上一章结尾\n- 情节方向：{plot_direction}\n- 情感基调：根据故事情节自然呈现\n\n## 续写要点\n1. 承接上一章结尾的场景和情节，确保时间和空间连续性\n2. 根据前文情节发展方向，推进故事\n3. 维持人物性格和行为逻辑的一致性\n4. 创造新的情节冲突或转折，保持故事张力\n5. 适当运用对话、心理活动、动作描写和环境渲染\n\n## 重要提醒\n- 主角姓名：{protagonist_info}\n- 其他人物：请查看人物设定，确保姓名和性格一致\n- 禁止添加人物设定之外的新角色\n- 注意前文已埋下的伏笔和悬念\n\n## 输出要求\n请直接输出第{chapter_number}章正文，不需要额外说明。章节开头标注\"第{chapter_number}章\"，正文约{word_count}字。",
+
+    "user_continue_with_summary": "# 续写任务\n\n## 本次任务\n- 章节序号：第{chapter_number}章\n- 目标字数：约{word_count}字\n- 衔接方式：紧接上一章结尾\n- 前文总结：{previous_summary}\n- 情节方向：{plot_direction}\n- 情感基调：根据故事情节自然呈现\n\n## 续写要点\n1. 承接上一章结尾的场景和情节，确保时间和空间连续性\n2. 根据前文情节发展方向，推进故事\n3. 维持人物性格和行为逻辑的一致性\n4. 创造新的情节冲突或转折，保持故事张力\n5. 适当运用对话、心理活动、动作描写和环境渲染\n\n## 重要提醒\n- 主角姓名：{protagonist_info}\n- 其他人物：请查看人物设定，确保姓名和性格一致\n- 禁止添加人物设定之外的新角色\n- 注意前文已埋下的伏笔和悬念\n\n## 输出要求\n请直接输出第{chapter_number}章正文，不需要额外说明。章节开头标注\"第{chapter_number}章\"，正文约{word_count}字。",
+
+    "user_continue_with_custom": "# 续写任务\n\n## 本次任务\n- 章节序号：第{chapter_number}章\n- 目标字数：约{word_count}字\n- 衔接方式：紧接上一章结尾\n- 前文总结：{previous_summary}\n- 情节方向：{plot_direction}\n- 情感基调：根据故事情节自然呈现\n\n## 续写要点\n1. 承接上一章结尾的场景和情节，确保时间和空间连续性\n2. 根据前文情节发展方向，推进故事\n3. 维持人物性格和行为逻辑的一致性\n4. 创造新的情节冲突或转折，保持故事张力\n5. 适当运用对话、心理活动、动作描写和环境渲染\n\n## 重要提醒\n- 主角姓名：{protagonist_info}\n- 其他人物：请查看人物设定，确保姓名和性格一致\n- 禁止添加人物设定之外的新角色\n- 注意前文已埋下的伏笔和悬念\n\n## 输出要求\n请直接输出第{chapter_number}章正文，不需要额外说明。章节开头标注\"第{chapter_number}章\"，正文约{word_count}字。\n\n## 用户特别要求\n{prompt}",
+
+    "user_standard": "# 创作第{chapter_number}章\n\n## 章节信息\n- 章节序号：第{chapter_number}章\n- 目标字数：约{word_count}字\n\n## 创作要点\n1. 情节完整，有起承转合\n2. 人物性格鲜明，行为符合逻辑\n3. 场景描写生动，有画面感\n4. 对话自然，推动情节发展\n\n## 输出要求\n请直接输出第{chapter_number}章正文，章节开头标注\"第{chapter_number}章\"，正文约{word_count}字。",
+
+    "user_standard_with_custom": "# 创作第{chapter_number}章\n\n## 章节信息\n- 章节序号：第{chapter_number}章\n- 目标字数：约{word_count}字\n\n## 创作要点\n1. 情节完整，有起承转合\n2. 人物性格鲜明，行为符合逻辑\n3. 场景描写生动，有画面感\n4. 对话自然，推动情节发展\n\n## 输出要求\n请直接输出第{chapter_number}章正文，章节开头标注\"第{chapter_number}章\"，正文约{word_count}字。\n\n## 用户特别要求\n{prompt}",
+
+    "summary_generation": "请为以下小说章节生成一段适合续写的剧情总结（200-300字）：\n\n章节标题：{title}\n章节内容：\n{content}\n\n要求：\n1. **结尾状态**：本章结束时，主要人物在哪里、在做什么、情绪状态如何\n2. **关键转折**：本章发生的重要事件和转折点，特别是对后续剧情有影响的内容\n3. **未解事项**：本章提出但未解决的问题、悬念、伏笔\n4. **人物关系**：人物关系的变化，特别是冲突、alliances、情感变化\n5. **续写提示**：基于本章结尾，下一章可能的情节方向\n\n请用叙述性语言写出，重点放在\"结尾状态\"和\"续写提示\"上，让下一章的作者能够自然衔接。",
+
+    "display_summary_generation": "请为以下小说章节生成一段简短的剧情简介（100-150字），用于在页面中展示给读者：\n\n章节标题：{title}\n章节内容：\n{content}\n\n要求：\n1. **简洁明了**：用一两句话概括本章主要情节\n2. **读者友好**：面向读者，不包含剧透和写作技术细节\n3. **引人入胜**：突出本章的精彩看点，吸引阅读兴趣\n4. **中立叙述**：使用第三人称客观叙述\n5. **字数控制**：严格控制在100-150字\n\n请直接输出简介内容，不要包含\"本章讲述了\"等开头词。",
+
+    "outline_generation": "为一本{genre}小说生成{chapter_count}章的大纲。\n书名：《{title}》\n简介：{summary}\n\n请生成每章的标题和简要情节描述，以JSON格式返回。",
+
+    "content_expansion": "请将以下内容扩写到{target_words}字左右，保持原有的情节和人物性格不变：\n\n{content}",
+
+    "context_analysis_system": "你是一个专业的小说创作助手。请根据项目信息和情节方向，分析并推荐最适合的角色、世界观设定和情节节点。\n\n请严格按照JSON格式返回，包含以下字段：\n- suggested_characters: 推荐的角色ID列表（最多10个）\n- suggested_world_settings: 推荐的世界观设定ID列表（最多10个）\n- suggested_plot_nodes: 推荐的情节节点ID列表（最多10个）\n\n请确保推荐的实体与当前情节方向相符。",
+
+    "context_analysis_user": "## 小说项目信息\n书名：{title}\n类型：{genre}\n简介：{summary}\n文风：{style}\n\n## 可用角色（{character_count}个）\n{character_list}\n\n## 世界观设定（{setting_count}个）\n{setting_list}\n\n## 情节节点（{plot_count}个）\n{plot_list}\n\n{previous_context_section}\n{plot_direction_section}\n\n请基于以上信息，推荐最适合当前情节发展的角色、世界观设定和情节节点。\n注意：\n1. 推荐要符合情节方向\n2. 优先选择核心规则设定\n3. 控制每个类别最多10个推荐\n4. 返回JSON格式的ID列表",
+
+    "context_build_project_info": "## 📚 小说信息\n书名：{title}\n类型：{genre}\n简介：{summary}\n{style_section}\n",
+
+    "context_build_style_section": "文风要求：{style}",
+
+    "context_build_character": "## 👥 主要人物\n{character_info}",
+
+    "context_build_world_settings": "## 🌍 世界观设定\n{world_settings_info}",
+
+    "context_build_creation_requirements": "\n## ✍️ 创作要求\n1. 严格遵循以上人物设定和世界观规则\n2. 保持人物性格一致，言行符合其设定\n3. 尊重核心规则，不要自相矛盾\n4. 细节描写要丰富，对话要符合人物性格\n5. 根据用户提示词进行创作，但要结合设定\n",
+
+    "old_chapter_generation": "你是一个专业的小说创作助手。根据以下设定和用户要求，创作小说内容。\n\n{context}\n\n创作要求：\n1. 字数约{word_count}字\n2. 保持人物性格一致\n3. 遵守世界观设定\n{style_section}"
+  }
+}

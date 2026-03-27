@@ -12,6 +12,7 @@ import json
 import uuid
 import asyncio
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,65 @@ class AIService:
                 api_key=api_key,
                 base_url=settings.OPENAI_API_BASE
             )
+        # 加载提示词配置
+        self.prompts_config = self._load_prompts_config()
+
+    def _load_prompts_config(self) -> dict:
+        """
+        加载提示词配置文件
+
+        Returns:
+            提示词配置字典
+        """
+        try:
+            # 获取 app 目录（services 的上级目录）
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            app_dir = os.path.dirname(current_dir)
+            config_path = os.path.join(app_dir, 'prompts_config.json')
+
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                logger.info(f"成功加载提示词配置文件: {config_path}")
+                return config.get('prompts', {})
+        except FileNotFoundError:
+            logger.warning(f"提示词配置文件未找到: {config_path}，将使用内置提示词")
+            return {}
+        except json.JSONDecodeError as e:
+            logger.error(f"提示词配置文件格式错误: {e}")
+            return {}
+        except Exception as e:
+            logger.error(f"加载提示词配置文件失败: {e}")
+            return {}
+
+    def _get_prompt(self, prompt_key: str, default: str = "") -> str:
+        """
+        获取提示词模板
+
+        Args:
+            prompt_key: 提示词键名
+            default: 默认提示词（配置加载失败时使用）
+
+        Returns:
+            提示词模板
+        """
+        return self.prompts_config.get(prompt_key, default)
+
+    def _format_prompt(self, template: str, **kwargs) -> str:
+        """
+        格式化提示词模板
+
+        Args:
+            template: 提示词模板
+            **kwargs: 模板变量
+
+        Returns:
+            格式化后的提示词
+        """
+        try:
+            return template.format(**kwargs)
+        except KeyError as e:
+            logger.error(f"格式化提示词失败，缺少变量: {e}")
+            return template
 
     def _build_context(self, project_data: dict, characters: list, world_settings: list) -> str:
         """构建AI生成的上下文"""
@@ -124,11 +184,15 @@ class AIService:
         word_count: int = 2000,
         style: Optional[str] = None
     ) -> str:
-        """生成章节内容"""
+        """生成章节内容（旧版本，向后兼容）"""
         if not self.client:
             raise ValueError("AI服务未配置，请设置OPENAI_API_KEY")
 
-        system_prompt = f"""你是一个专业的小说创作助手。根据以下设定和用户要求，创作小说内容。
+        # 从配置文件获取模板
+        template = self._get_prompt('old_chapter_generation', "")
+        if not template:
+            # 内置默认模板
+            template = """你是一个专业的小说创作助手。根据以下设定和用户要求，创作小说内容。
 
 {context}
 
@@ -136,8 +200,16 @@ class AIService:
 1. 字数约{word_count}字
 2. 保持人物性格一致
 3. 遵守世界观设定
-4. {f'文风：{style}' if style else ''}
+{style_section}
 """
+
+        style_section = f"4. 文风：{style}" if style else ""
+        system_prompt = self._format_prompt(
+            template,
+            context=context,
+            word_count=word_count,
+            style_section=style_section
+        )
 
         try:
             # 计算max_tokens - 中文通常 1 token ≈ 0.7-1 个中文字符
@@ -226,11 +298,23 @@ class AIService:
         if not self.client:
             raise ValueError("AI服务未配置，请设置OPENAI_API_KEY")
 
-        prompt = f"""为一本{project_info.get('genre', '')}小说生成{chapter_count}章的大纲。
-书名：《{project_info.get('title', '')}》
-简介：{project_info.get('summary', '')}
+        # 从配置文件获取模板，如果配置为空则使用内置默认值
+        template = self._get_prompt('outline_generation', "")
+        if not template:
+            # 内置默认模板（配置加载失败时的后备方案）
+            template = """为一本{genre}小说生成{chapter_count}章的大纲。
+书名：《{title}》
+简介：{summary}
 
 请生成每章的标题和简要情节描述，以JSON格式返回。"""
+
+        prompt = self._format_prompt(
+            template,
+            genre=project_info.get('genre', ''),
+            title=project_info.get('title', ''),
+            summary=project_info.get('summary', ''),
+            chapter_count=chapter_count
+        )
 
         try:
             response = self.client.chat.completions.create(
@@ -257,9 +341,15 @@ class AIService:
         if not self.client:
             raise ValueError("AI服务未配置，请设置OPENAI_API_KEY")
 
-        prompt = f"""请将以下内容扩写到{target_words}字左右，保持原有的情节和人物性格不变：
+        # 从配置文件获取模板，如果配置为空则使用内置默认值
+        template = self._get_prompt('content_expansion', "")
+        if not template:
+            # 内置默认模板（配置加载失败时的后备方案）
+            template = """请将以下内容扩写到{target_words}字左右，保持原有的情节和人物性格不变：
 
 {content}"""
+
+        prompt = self._format_prompt(template, content=content, target_words=target_words)
 
         try:
             response = self.client.chat.completions.create(
@@ -339,17 +429,23 @@ class AIService:
 
             # 调用AI进行分析
             try:
-                response = self.client.chat.completions.create(
-                    model=settings.AI_MODEL,
-                    messages=[
-                        {"role": "system", "content": """你是一个专业的小说创作助手。请根据项目信息和情节方向，分析并推荐最适合的角色、世界观设定和情节节点。
+                # 从配置文件获取系统提示词模板
+                system_template = self._get_prompt('context_analysis_system', "")
+                if not system_template:
+                    # 内置默认模板
+                    system_template = """你是一个专业的小说创作助手。请根据项目信息和情节方向，分析并推荐最适合的角色、世界观设定和情节节点。
 
 请严格按照JSON格式返回，包含以下字段：
 - suggested_characters: 推荐的角色ID列表（最多10个）
 - suggested_world_settings: 推荐的世界观设定ID列表（最多10个）
 - suggested_plot_nodes: 推荐的情节节点ID列表（最多10个）
 
-请确保推荐的实体与当前情节方向相符。"""},
+请确保推荐的实体与当前情节方向相符。"""
+
+                response = self.client.chat.completions.create(
+                    model=settings.AI_MODEL,
+                    messages=[
+                        {"role": "system", "content": system_template},
                         {"role": "user", "content": analysis_prompt}
                     ],
                     temperature=0.3,
@@ -1133,7 +1229,7 @@ class AIService:
 
     def _build_system_prompt(self, request: dict, context: str) -> str:
         """
-        构建系统提示词 - 使用结构化模板
+        构建系统提示词 - 使用配置文件中的模板
 
         Args:
             request: 请求参数（包含项目信息）
@@ -1145,7 +1241,11 @@ class AIService:
         # 获取风格强度，用于调整文风强调程度
         style_intensity = request.get('style_intensity', 70)
 
-        system_prompt = f"""你是一个专业的小说创作助手。请严格按照以下设定创作高质量的小说内容。
+        # 从配置文件获取模板，如果配置为空则使用内置默认值
+        template = self._get_prompt('system_chapter_generation', "")
+        if not template:
+            # 内置默认模板（配置加载失败时的后备方案）
+            template = """你是一个专业的小说创作助手。请严格按照以下设定创作高质量的小说内容。
 
 {context}
 
@@ -1159,11 +1259,11 @@ class AIService:
 
 请严格遵守以上设定，创作出引人入胜、符合要求的章节内容。"""
 
-        return system_prompt
+        return self._format_prompt(template, context=context, style_intensity=style_intensity)
 
     def _build_user_prompt(self, request: dict) -> str:
         """
-        构建用户提示词 - 使用结构化续写/首章模板
+        构建用户提示词 - 使用配置文件中的模板
 
         Args:
             request: 请求参数
@@ -1181,117 +1281,55 @@ class AIService:
         # 获取主角信息（从上下文中解析）
         protagonist_info = ""
         if request.get('featured_characters'):
-            # featured_characters 是字符ID列表，需要从上下文中找到主角
-            # 这里简化处理，假设已经在上下文中标注了【主角】
             protagonist_info = "主角姓名请查看人物设定"
 
-        prompt_parts = []
+        # 根据模式选择合适的模板
+        template_key = None
+        template_vars = {
+            'chapter_number': chapter_number,
+            'word_count': word_count
+        }
 
         if generation_mode == 'first_chapter':
-            # ========== 首次生成模板 ==========
-            prompt_parts.extend([
-                "# 首次生成任务",
-                "",
-                f"## 章节信息",
-                f"- 章节序号：第{chapter_number}章",
-                f"- 目标字数：约{word_count}字",
-                "",
-                "## 首章要点",
-                "1. 引入主角，展示其基本特征（外貌、性格、身份、背景）",
-                "2. 建立故事背景和世界观（时代、地点、社会氛围）",
-                "3. 设置初始情境或引发事件，推动故事发展",
-                "4. 营造故事基调，吸引读者继续阅读",
-                "",
-                "## 创作建议",
-                "- 避免大段背景说明，通过情节和细节自然展现设定",
-                "- 开头要吸引人，可设置悬念、冲突或引人入胜的场景",
-                "- 确保主角在第1章就有足够的戏份和表现",
-                "- 结尾可适当留白或制造轻微悬念",
-                "",
-                "## 输出要求",
-                f"请直接输出第{chapter_number}章正文，不需要额外说明。章节开头标注\"第{chapter_number}章\"，正文约{word_count}字。"
-            ])
-
-            # 添加用户自定义要求
+            # 首章模式
             if prompt_text:
-                prompt_parts.extend([
-                    "",
-                    f"## 用户特别要求",
-                    prompt_text
-                ])
+                template_key = 'user_first_chapter_with_custom'
+                template_vars['prompt'] = prompt_text
+            else:
+                template_key = 'user_first_chapter'
 
         elif generation_mode == 'continue':
-            # ========== 续写任务模板 ==========
-            prompt_parts.extend([
-                "# 续写任务",
-                "",
-                "## 本次任务",
-                f"- 章节序号：第{chapter_number}章",
-                f"- 目标字数：约{word_count}字",
-                "- 衔接方式：紧接上一章结尾",
-                f"- 情节方向：{plot_direction if plot_direction else '根据前文自然发展'}",
-                "- 情感基调：根据故事情节自然呈现",
-                "",
-                "## 续写要点",
-                "1. 承接上一章结尾的场景和情节，确保时间和空间连续性",
-                "2. 根据前文情节发展方向，推进故事",
-                "3. 维持人物性格和行为逻辑的一致性",
-                "4. 创造新的情节冲突或转折，保持故事张力",
-                "5. 适当运用对话、心理活动、动作描写和环境渲染",
-                "",
-                "## 重要提醒",
-                f"- 主角姓名：{protagonist_info}",
-                "- 其他人物：请查看人物设定，确保姓名和性格一致",
-                "- 禁止添加人物设定之外的新角色",
-                "- 注意前文已埋下的伏笔和悬念",
-                "",
-                "## 输出要求",
-                f"请直接输出第{chapter_number}章正文，不需要额外说明。章节开头标注\"第{chapter_number}章\"，正文约{word_count}字。"
-            ])
+            # 续写模式
+            template_vars['plot_direction'] = plot_direction if plot_direction else '根据前文自然发展'
+            template_vars['protagonist_info'] = protagonist_info
+            template_vars['previous_summary'] = (
+                previous_summary[:300] + "..." if len(previous_summary) > 300
+                else previous_summary
+            ) if previous_summary else "无"
 
-            # 添加前文总结
-            if previous_summary:
-                prompt_parts.insert(
-                    4,  # 插在"本次任务"和"衔接方式"之间
-                    f"- 前文总结：{previous_summary[:300]}..." if len(previous_summary) > 300 else f"- 前文总结：{previous_summary}"
-                )
-
-            # 添加用户自定义要求
             if prompt_text:
-                prompt_parts.extend([
-                    "",
-                    f"## 用户特别要求",
-                    prompt_text
-                ])
+                template_key = 'user_continue_with_custom'
+                template_vars['prompt'] = prompt_text
+            elif previous_summary:
+                template_key = 'user_continue_with_summary'
+            else:
+                template_key = 'user_continue'
 
         else:
-            # ========== 标准生成模板 ==========
-            prompt_parts.extend([
-                f"# 创作第{chapter_number}章",
-                "",
-                f"## 章节信息",
-                f"- 章节序号：第{chapter_number}章",
-                f"- 目标字数：约{word_count}字",
-                "",
-                "## 创作要点",
-                "1. 情节完整，有起承转合",
-                "2. 人物性格鲜明，行为符合逻辑",
-                "3. 场景描写生动，有画面感",
-                "4. 对话自然，推动情节发展",
-                "",
-                "## 输出要求",
-                f"请直接输出第{chapter_number}章正文，章节开头标注\"第{chapter_number}章\"，正文约{word_count}字。"
-            ])
-
-            # 添加用户自定义要求
+            # 标准模式
             if prompt_text:
-                prompt_parts.extend([
-                    "",
-                    f"## 用户特别要求",
-                    prompt_text
-                ])
+                template_key = 'user_standard_with_custom'
+                template_vars['prompt'] = prompt_text
+            else:
+                template_key = 'user_standard'
 
-        prompt = "\n".join(prompt_parts)
+        # 从配置文件获取模板，如果配置为空则使用内置默认值
+        template = self._get_prompt(template_key, "")
+        if not template:
+            # 内置默认模板（配置加载失败时的后备方案）
+            template = self._get_default_user_prompt(generation_mode, bool(prompt_text), bool(previous_summary))
+
+        prompt = self._format_prompt(template, **template_vars)
 
         logger.info(f"===== 构建的用户提示词 =====")
         logger.info(f"章节号: {chapter_number}")
@@ -1303,6 +1341,135 @@ class AIService:
         logger.info(f"完整提示词:\n{prompt}\n")
 
         return prompt
+
+    def _get_default_user_prompt(self, mode: str, has_custom: bool, has_summary: bool) -> str:
+        """
+        获取内置默认用户提示词（配置加载失败时的后备方案）
+
+        Args:
+            mode: 生成模式（first_chapter/continue/standard）
+            has_custom: 是否有用户自定义要求
+            has_summary: 是否有前文总结
+
+        Returns:
+            默认提示词模板
+        """
+        if mode == 'first_chapter':
+            if has_custom:
+                return """# 首次生成任务
+
+## 章节信息
+- 章节序号：第{chapter_number}章
+- 目标字数：约{word_count}字
+
+## 首章要点
+1. 引入主角，展示其基本特征（外貌、性格、身份、背景）
+2. 建立故事背景和世界观（时代、地点、社会氛围）
+3. 设置初始情境或引发事件，推动故事发展
+4. 营造故事基调，吸引读者继续阅读
+
+## 创作建议
+- 避免大段背景说明，通过情节和细节自然展现设定
+- 开头要吸引人，可设置悬念、冲突或引人入胜的场景
+- 确保主角在第1章就有足够的戏份和表现
+- 结尾可适当留白或制造轻微悬念
+
+## 输出要求
+请直接输出第{chapter_number}章正文，不需要额外说明。章节开头标注"第{chapter_number}章"，正文约{word_count}字。
+
+## 用户特别要求
+{prompt}"""
+            else:
+                return """# 首次生成任务
+
+## 章节信息
+- 章节序号：第{chapter_number}章
+- 目标字数：约{word_count}字
+
+## 首章要点
+1. 引入主角，展示其基本特征（外貌、性格、身份、背景）
+2. 建立故事背景和世界观（时代、地点、社会氛围）
+3. 设置初始情境或引发事件，推动故事发展
+4. 营造故事基调，吸引读者继续阅读
+
+## 创作建议
+- 避免大段背景说明，通过情节和细节自然展现设定
+- 开头要吸引人，可设置悬念、冲突或引人入胜的场景
+- 确保主角在第1章就有足够的戏份和表现
+- 结尾可适当留白或制造轻微悬念
+
+## 输出要求
+请直接输出第{chapter_number}章正文，不需要额外说明。章节开头标注"第{chapter_number}章"，正文约{word_count}字。"""
+
+        elif mode == 'continue':
+            base_template = """# 续写任务
+
+## 本次任务
+- 章节序号：第{chapter_number}章
+- 目标字数：约{word_count}字
+- 衔接方式：紧接上一章结尾
+{summary_line}- 情节方向：{plot_direction}
+- 情感基调：根据故事情节自然呈现
+
+## 续写要点
+1. 承接上一章结尾的场景和情节，确保时间和空间连续性
+2. 根据前文情节发展方向，推进故事
+3. 维持人物性格和行为逻辑的一致性
+4. 创造新的情节冲突或转折，保持故事张力
+5. 适当运用对话、心理活动、动作描写和环境渲染
+
+## 重要提醒
+- 主角姓名：{protagonist_info}
+- 其他人物：请查看人物设定，确保姓名和性格一致
+- 禁止添加人物设定之外的新角色
+- 注意前文已埋下的伏笔和悬念
+
+## 输出要求
+请直接输出第{chapter_number}章正文，不需要额外说明。章节开头标注"第{chapter_number}章"，正文约{word_count}字。"""
+
+            if has_custom:
+                return base_template + "\n\n## 用户特别要求\n{prompt}"
+            elif has_summary:
+                summary_line = "- 前文总结：{previous_summary}\n"
+                return base_template.format(summary_line=summary_line)
+            else:
+                summary_line = ""
+                return base_template.format(summary_line=summary_line)
+
+        else:  # standard
+            if has_custom:
+                return """# 创作第{chapter_number}章
+
+## 章节信息
+- 章节序号：第{chapter_number}章
+- 目标字数：约{word_count}字
+
+## 创作要点
+1. 情节完整，有起承转合
+2. 人物性格鲜明，行为符合逻辑
+3. 场景描写生动，有画面感
+4. 对话自然，推动情节发展
+
+## 输出要求
+请直接输出第{chapter_number}章正文，章节开头标注"第{chapter_number}章"，正文约{word_count}字。
+
+## 用户特别要求
+{prompt}"""
+            else:
+                return """# 创作第{chapter_number}章
+
+## 章节信息
+- 章节序号：第{chapter_number}章
+- 目标字数：约{word_count}字
+
+## 创作要点
+1. 情节完整，有起承转合
+2. 人物性格鲜明，行为符合逻辑
+3. 场景描写生动，有画面感
+4. 对话自然，推动情节发展
+
+## 输出要求
+请直接输出第{chapter_number}章正文，章节开头标注"第{chapter_number}章"，正文约{word_count}字。"""
 
     def generate_chapter_summary(self, content: str, title: str = "") -> str:
         """
@@ -1326,21 +1493,28 @@ class AIService:
             return summary
 
         try:
-            # 使用AI生成适合续写的摘要
-            prompt = f"""请为以下小说章节生成一段适合续写的剧情总结（200-300字）：
+            # 从配置文件获取模板，如果配置为空则使用内置默认值
+            template = self._get_prompt('summary_generation', "")
+            if not template:
+                # 内置默认模板（配置加载失败时的后备方案）
+                template = """请为以下小说章节生成一段适合续写的剧情总结（200-300字）：
 
 章节标题：{title}
 章节内容：
-{content[:2000]}
+{content}
 
 要求：
 1. **结尾状态**：本章结束时，主要人物在哪里、在做什么、情绪状态如何
 2. **关键转折**：本章发生的重要事件和转折点，特别是对后续剧情有影响的内容
 3. **未解事项**：本章提出但未解决的问题、悬念、伏笔
-4. **人物关系**：人物关系的变化，特别是冲突、 alliances、情感变化
+4. **人物关系**：人物关系的变化，特别是冲突、alliances、情感变化
 5. **续写提示**：基于本章结尾，下一章可能的情节方向
 
 请用叙述性语言写出，重点放在"结尾状态"和"续写提示"上，让下一章的作者能够自然衔接。"""
+
+            # 限制内容长度为2000字符
+            content_preview = content[:2000] if len(content) > 2000 else content
+            prompt = self._format_prompt(template, title=title, content=content_preview)
 
             response = self.client.chat.completions.create(
                 model=settings.AI_MODEL,
@@ -1364,6 +1538,75 @@ class AIService:
             summary = content[:200].replace('\n', ' ').strip()
             if len(summary) > 200:
                 summary = summary[:197] + "..."
+            return summary
+
+    def generate_display_summary(self, content: str, title: str = "") -> str:
+        """
+        使用AI生成章节展示摘要（用于页面显示）
+
+        Args:
+            content: 章节内容
+            title: 章节标题（可选）
+
+        Returns:
+            展示摘要（100-150字）
+        """
+        if not content or len(content) < 100:
+            return "内容过短，无法生成摘要"
+
+        if not self.client:
+            # 如果AI服务未配置，使用简单截取
+            summary = content[:150].replace('\n', ' ').strip()
+            if len(summary) > 150:
+                summary = summary[:147] + "..."
+            return summary
+
+        try:
+            # 从配置文件获取模板，如果配置为空则使用内置默认值
+            template = self._get_prompt('display_summary_generation', "")
+            if not template:
+                # 内置默认模板（配置加载失败时的后备方案）
+                template = """请为以下小说章节生成一段简短的剧情简介（100-150字），用于在页面中展示给读者：
+
+章节标题：{title}
+章节内容：
+{content}
+
+要求：
+1. **简洁明了**：用一两句话概括本章主要情节
+2. **读者友好**：面向读者，不包含剧透和写作技术细节
+3. **引人入胜**：突出本章的精彩看点，吸引阅读兴趣
+4. **中立叙述**：使用第三人称客观叙述
+5. **字数控制**：严格控制在100-150字
+
+请直接输出简介内容，不要包含"本章讲述了"等开头词。"""
+
+            # 限制内容长度为2000字符
+            content_preview = content[:2000] if len(content) > 2000 else content
+            prompt = self._format_prompt(template, title=title, content=content_preview)
+
+            response = self.client.chat.completions.create(
+                model=settings.AI_MODEL,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.5,
+                max_tokens=300,  # 300 tokens 足够生成 150 字
+                extra_body={
+                    "thinking": {
+                        "type": "disabled"  # 关闭思考模式
+                    }
+                }
+            )
+
+            display_summary = response.choices[0].message.content.strip()
+            return display_summary
+        except Exception as e:
+            # AI生成失败时，使用简单截取
+            logger.warning(f"AI生成展示摘要失败: {str(e)}，使用简单截取")
+            summary = content[:150].replace('\n', ' ').strip()
+            if len(summary) > 150:
+                summary = summary[:147] + "..."
             return summary
 
 

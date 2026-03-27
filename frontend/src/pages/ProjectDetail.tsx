@@ -4,7 +4,6 @@ import { Layout, List, Button, Input, Card, Empty, Spin, Tabs, Space, Modal, mes
 const { TextArea } = Input
 import {
   BulbOutlined,
-  RobotOutlined,
   TeamOutlined,
   GlobalOutlined,
   BookOutlined,
@@ -55,7 +54,6 @@ const ProjectDetail = () => {
   const [generatingProgress, setGeneratingProgress] = useState(0)
   const generatingMessageInterval = useRef<NodeJS.Timeout | null>(null)
   const generatingProgressInterval = useRef<NodeJS.Timeout | null>(null)
-  const [prompt, setPrompt] = useState('')
   const [activeTab, setActiveTab] = useState('chapters')
   const [createModalVisible, setCreateModalVisible] = useState(false)
   const [newChapterTitle, setNewChapterTitle] = useState('')
@@ -550,33 +548,6 @@ const ProjectDetail = () => {
     }
   }
 
-  const handleGenerate = async () => {
-    if (!currentChapter || !prompt) return
-
-    setGenerating(true)
-    startGeneratingAnimation()  // 启动全屏 loading 动画
-
-    try {
-      const response = await chapterApi.generate(currentChapter.id, prompt)
-      setCurrentChapter({
-        ...currentChapter,
-        content: response.data.content,
-        word_count: response.data.word_count,
-      })
-      setPrompt('')
-
-      // 停止动画并显示成功消息
-      stopGeneratingAnimation()
-      message.success('✨ 生成成功！内容已保存')
-    } catch (error) {
-      stopGeneratingAnimation()
-      message.error('❌ 生成失败，请稍后重试')
-      console.error('生成失败', error)
-    } finally {
-      setGenerating(false)
-    }
-  }
-
   const handleDeleteChapter = async (chapterId: number, chapterTitle: string, chapterNumber: number) => {
     try {
       const response = await chapterApi.delete(chapterId)
@@ -813,78 +784,6 @@ const ProjectDetail = () => {
                           chapterId={currentChapter.id}
                         />
                       </div>
-
-                      {/* AI指令输入 - 简化版 */}
-                      <Card
-                        bordered={false}
-                        style={{
-                          position: 'sticky',
-                          bottom: 0,
-                          zIndex: 100,
-                          marginTop: '16px',
-                          borderRadius: 8,
-                          backgroundColor: '#f0f2ff',
-                          border: '1px solid #d6e4ff',
-                          cursor: 'pointer'
-                        }}
-                        bodyStyle={{ padding: '12px 16px' }}
-                        onClick={() => {
-                          // 触发SmartTextEditor的AI弹窗
-                          const textarea = document.querySelector('textarea')
-                          if (textarea) {
-                            textarea.focus()
-                            message.info('💡 提示：选中文本可修改，不选则可在光标位置插入')
-                          }
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <Input
-                            placeholder="💡 点击使用AI智能生成（支持修改选中文本或在光标位置插入）"
-                            value={prompt}
-                            onChange={(e) => setPrompt(e.target.value)}
-                            onPressEnter={handleGenerate}
-                            disabled={generating}
-                            size="large"
-                            style={{ border: 'none', backgroundColor: 'transparent', cursor: 'pointer' }}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              // 聚焦到编辑器，方便用户选中文本
-                              const textarea = document.querySelector('textarea')
-                              if (textarea) {
-                                textarea.focus()
-                              }
-                            }}
-                            readOnly
-                          />
-                          <Button
-                            type="primary"
-                            size="small"
-                            icon={<RobotOutlined />}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              // 直接使用SmartTextEditor的AI功能
-                              const textarea = document.querySelector('textarea') as HTMLTextAreaElement
-                              if (textarea) {
-                                // 检查是否有选中文本
-                                const start = textarea.selectionStart
-                                const end = textarea.selectionEnd
-                                if (start !== end) {
-                                  // 有选中文本，触发修改
-                                  const selectedText = currentChapter.content?.substring(start, end)
-                                  handleAITextEdit(selectedText || '', 'replace', start, prompt)
-                                } else {
-                                  // 没有选中文本，在光标位置插入
-                                  handleAITextEdit('', 'insert_before', textarea.selectionStart, prompt)
-                                }
-                                setPrompt('')
-                              }
-                            }}
-                            loading={generating}
-                          >
-                            生成
-                          </Button>
-                        </div>
-                      </Card>
                     </>
                   ) : (
                     <>
@@ -1177,11 +1076,11 @@ const ProjectDetail = () => {
                   {currentChapter.status === 'completed' ? '已完成' : '草稿'}
                 </span>
               </p>
-              {currentChapter.summary && (
+              {currentChapter.display_summary && (
                 <p style={{ margin: '8px 0', fontSize: '13px', color: '#595959' }}>
                   <strong style={{ color: '#262626' }}>摘要：</strong>
                   <div style={{ fontSize: '12px', color: '#8c8c8c', marginTop: 4, lineHeight: '1.6' }}>
-                    {currentChapter.summary}
+                    {currentChapter.display_summary}
                   </div>
                 </p>
               )}
