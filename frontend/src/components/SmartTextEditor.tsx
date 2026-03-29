@@ -36,6 +36,7 @@ const SmartTextEditor: React.FC<SmartTextEditorProps> = ({
   const [aiModalVisible, setAiModalVisible] = useState(false)
   const [insertMode, setInsertMode] = useState<'cursor' | 'start' | 'end'>('cursor')
   const [customPrompt, setCustomPrompt] = useState('') // 自定义生成要求
+  const [selectedQuickMode, setSelectedQuickMode] = useState<string | null>(null) // 选中的快捷模式
 
   // 监听文本选择
   const handleMouseUp = () => {
@@ -134,64 +135,63 @@ const SmartTextEditor: React.FC<SmartTextEditorProps> = ({
     setAiModalVisible(false)
     setSelection(null)
     setCustomPrompt('') // 清空输入框
+    setSelectedQuickMode(null) // 清空快捷模式选择
   }
 
-  // 快捷指令
-  const quickCommands = [
+  // 快捷模式定义
+  const quickModes = [
     {
+      key: 'continue_writing',
       name: '续写一段',
       icon: <EditOutlined />,
-      prompt: '请根据当前内容续写一段，保持文风和人物性格一致',
-      action: () => {
-        if (!onAIGenerate) return
-        const textarea = textAreaRef.current?.resizableTextArea?.textArea
-        // 如果有选中文本，从选中文本的末尾位置续写；否则从光标位置续写
-        const position = selection ? selection.end : (textarea?.selectionEnd || value.length)
-        // 传递选中的文本（如果有），否则传递空字符串
-        const selectedTextContent = selection ? selection.text : ''
-        onAIGenerate(selectedTextContent, 'insert_before', position)
-      }
+      prompt: '请根据当前内容续写一段，保持文风和人物性格一致，确保情节自然连贯。',
+      description: '在现有内容基础上续写'
     },
     {
+      key: 'expand_description',
       name: '扩展描写',
       icon: <PlusCircleOutlined />,
-      prompt: '请扩展选中的内容，增加更多细节和描写',
-      action: () => {
-        if (!selection) {
-          message.warning('请先选择要扩展的文本')
-          return
-        }
-        if (!onAIGenerate) return
-        onAIGenerate(selection.text, 'replace', selection.start)
-      }
+      prompt: '请扩展内容，增加更多细节描写、环境渲染、人物心理活动等，使内容更加丰富生动。',
+      description: '增加细节和描写'
     },
     {
+      key: 'simplify_content',
       name: '精简内容',
       icon: <SwapOutlined />,
-      prompt: '请精简选中的内容，保留核心信息',
-      action: () => {
-        if (!selection) {
-          message.warning('请先选择要精简的文本')
-          return
-        }
-        if (!onAIGenerate) return
-        onAIGenerate(selection.text, 'replace', selection.start)
-      }
+      prompt: '请精简内容，保留核心情节和关键信息，去除冗余描述，使表达更加简洁明了。',
+      description: '保留核心，去除冗余'
     },
     {
+      key: 'polish_rewrite',
       name: '改写润色',
       icon: <HighlightOutlined />,
-      prompt: '请改写选中的内容，使其更加生动流畅',
-      action: () => {
-        if (!selection) {
-          message.warning('请先选择要改写的文本')
-          return
-        }
-        if (!onAIGenerate) return
-        onAIGenerate(selection.text, 'replace', selection.start)
-      }
+      prompt: '请改写润色内容，优化语言表达，增强文字感染力，使行文更加流畅生动。',
+      description: '优化文字表达'
     }
   ]
+
+  // 处理快捷模式选择
+  const handleQuickModeSelect = (modeKey: string) => {
+    const mode = quickModes.find(m => m.key === modeKey)
+    if (mode) {
+      // 如果再次点击已选中的模式，则取消选择
+      if (selectedQuickMode === modeKey) {
+        setSelectedQuickMode(null)
+        setCustomPrompt('')
+      } else {
+        setSelectedQuickMode(modeKey)
+        setCustomPrompt(mode.prompt)
+      }
+    }
+  }
+
+  // 当弹窗关闭时，重置快捷模式选择
+  useEffect(() => {
+    if (!aiModalVisible) {
+      setSelectedQuickMode(null)
+      setCustomPrompt('')
+    }
+  }, [aiModalVisible])
 
   return (
     <div>
@@ -236,22 +236,6 @@ const SmartTextEditor: React.FC<SmartTextEditorProps> = ({
             </Tooltip>
           )}
         </Space>
-
-        {/* 快捷指令 */}
-        <Space size="small" wrap>
-          {quickCommands.map((cmd, index) => (
-            <Tooltip key={index} title={cmd.prompt}>
-              <Button
-                size="small"
-                icon={cmd.icon}
-                onClick={cmd.action}
-                disabled={selection === null && cmd.name !== '续写一段'}
-              >
-                {cmd.name}
-              </Button>
-            </Tooltip>
-          ))}
-        </Space>
       </div>
 
       {/* 文本编辑器 */}
@@ -277,7 +261,7 @@ const SmartTextEditor: React.FC<SmartTextEditorProps> = ({
         open={aiModalVisible}
         onCancel={() => setAiModalVisible(false)}
         footer={null}
-        width={500}
+        width={600}
       >
         {selection ? (
           // 有选中文本：显示替换选项
@@ -298,6 +282,103 @@ const SmartTextEditor: React.FC<SmartTextEditorProps> = ({
               <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
                 字数：{selection.text.length}
               </div>
+            </div>
+
+            {/* 快捷模式选择 */}
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>
+                快捷模式（可选）
+              </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: '10px'
+              }}>
+                {quickModes.map(mode => {
+                  const isSelected = selectedQuickMode === mode.key
+                  return (
+                    <div
+                      key={mode.key}
+                      onClick={() => handleQuickModeSelect(mode.key)}
+                      style={{
+                        padding: '10px 12px',
+                        border: `2px solid ${isSelected ? '#1890ff' : '#d9d9d9'}`,
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        background: isSelected ? '#e6f7ff' : '#fff',
+                        transition: 'all 0.3s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.borderColor = '#1890ff'
+                          e.currentTarget.style.boxShadow = '0 2px 6px rgba(24, 144, 255, 0.2)'
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.borderColor = '#d9d9d9'
+                          e.currentTarget.style.boxShadow = 'none'
+                        }
+                      }}
+                    >
+                      <div style={{
+                        fontSize: '18px',
+                        color: isSelected ? '#1890ff' : '#8c8c8c'
+                      }}>
+                        {mode.icon}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{
+                          fontWeight: isSelected ? '600' : '400',
+                          color: isSelected ? '#1890ff' : '#262626',
+                          marginBottom: '2px',
+                          fontSize: '13px'
+                        }}>
+                          {mode.name}
+                        </div>
+                        <div style={{
+                          fontSize: '11px',
+                          color: '#8c8c8c'
+                        }}>
+                          {mode.description}
+                        </div>
+                      </div>
+                      {isSelected && (
+                        <div style={{
+                          color: '#1890ff',
+                          fontSize: '14px',
+                          fontWeight: 'bold'
+                        }}>
+                          ✓
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              {selectedQuickMode && (
+                <div style={{
+                  marginTop: '8px',
+                  padding: '6px 10px',
+                  background: '#fff7e6',
+                  border: '1px solid #ffd591',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  color: '#d46b08',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <span style={{ fontSize: '14px' }}>💡</span>
+                  <span>
+                    已选择 <strong>{quickModes.find(m => m.key === selectedQuickMode)?.name}</strong> 模式，
+                    点击卡片可取消选择
+                  </span>
+                </div>
+              )}
             </div>
 
             <div style={{ fontSize: '14px', marginBottom: '12px' }}>
@@ -336,6 +417,7 @@ const SmartTextEditor: React.FC<SmartTextEditorProps> = ({
                   onAIGenerate(selection.text, 'insert_before', selection.end, customPrompt)
                   setAiModalVisible(false)
                   setCustomPrompt('')
+                  setSelectedQuickMode(null)
                 }}
               >
                 在选中内容后插入
@@ -350,6 +432,7 @@ const SmartTextEditor: React.FC<SmartTextEditorProps> = ({
                   onAIGenerate(selection.text, 'insert_before', selection.start, customPrompt)
                   setAiModalVisible(false)
                   setCustomPrompt('')
+                  setSelectedQuickMode(null)
                 }}
               >
                 在选中内容前插入
@@ -362,6 +445,103 @@ const SmartTextEditor: React.FC<SmartTextEditorProps> = ({
             <p style={{ marginBottom: '16px', color: '#666' }}>
               💡 <strong>提示：</strong>请先在文本框中选择要修改的内容，或者直接输入生成要求
             </p>
+
+            {/* 快捷模式选择 */}
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>
+                快捷模式（可选）
+              </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: '10px'
+              }}>
+                {quickModes.map(mode => {
+                  const isSelected = selectedQuickMode === mode.key
+                  return (
+                    <div
+                      key={mode.key}
+                      onClick={() => handleQuickModeSelect(mode.key)}
+                      style={{
+                        padding: '10px 12px',
+                        border: `2px solid ${isSelected ? '#1890ff' : '#d9d9d9'}`,
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        background: isSelected ? '#e6f7ff' : '#fff',
+                        transition: 'all 0.3s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.borderColor = '#1890ff'
+                          e.currentTarget.style.boxShadow = '0 2px 6px rgba(24, 144, 255, 0.2)'
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.borderColor = '#d9d9d9'
+                          e.currentTarget.style.boxShadow = 'none'
+                        }
+                      }}
+                    >
+                      <div style={{
+                        fontSize: '18px',
+                        color: isSelected ? '#1890ff' : '#8c8c8c'
+                      }}>
+                        {mode.icon}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{
+                          fontWeight: isSelected ? '600' : '400',
+                          color: isSelected ? '#1890ff' : '#262626',
+                          marginBottom: '2px',
+                          fontSize: '13px'
+                        }}>
+                          {mode.name}
+                        </div>
+                        <div style={{
+                          fontSize: '11px',
+                          color: '#8c8c8c'
+                        }}>
+                          {mode.description}
+                        </div>
+                      </div>
+                      {isSelected && (
+                        <div style={{
+                          color: '#1890ff',
+                          fontSize: '14px',
+                          fontWeight: 'bold'
+                        }}>
+                          ✓
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              {selectedQuickMode && (
+                <div style={{
+                  marginTop: '8px',
+                  padding: '6px 10px',
+                  background: '#fff7e6',
+                  border: '1px solid #ffd591',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  color: '#d46b08',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <span style={{ fontSize: '14px' }}>💡</span>
+                  <span>
+                    已选择 <strong>{quickModes.find(m => m.key === selectedQuickMode)?.name}</strong> 模式，
+                    点击卡片可取消选择
+                  </span>
+                </div>
+              )}
+            </div>
 
             <div style={{ fontSize: '14px', marginBottom: '12px' }}>
               生成要求
@@ -389,6 +569,7 @@ const SmartTextEditor: React.FC<SmartTextEditorProps> = ({
                   onAIGenerate('', 'insert_before', position, customPrompt)
                   setAiModalVisible(false)
                   setCustomPrompt('')
+                  setSelectedQuickMode(null)
                 }}
               >
                 在光标位置生成
@@ -401,6 +582,7 @@ const SmartTextEditor: React.FC<SmartTextEditorProps> = ({
                   onAIGenerate('', 'insert_before', value.length, customPrompt)
                   setAiModalVisible(false)
                   setCustomPrompt('')
+                  setSelectedQuickMode(null)
                 }}
               >
                 追加到末尾
