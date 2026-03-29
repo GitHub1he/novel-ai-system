@@ -120,6 +120,7 @@ class EntityExtractionService:
 - identity: 身份/职业
 - hometown: 籍贯
 - role: 角色类型（protagonist/antagonist/supporting/minor）
+  注意：根据人物在故事中的作用判断类型，如果无法确定，默认使用 "supporting"
 - personality: 性格特点（逗号分隔的标签）
 - core_motivation: 核心动机
 - fears: 恐惧的事物
@@ -128,7 +129,7 @@ class EntityExtractionService:
 章节内容：
 {chapter_content}
 
-已有的人物（不要重复）：
+参考已有的人物名称以避免重复（但请返回所有检测到的人物，系统会在服务端进行最终去重）：
 {existing_characters}
 
 请以 JSON 格式返回，格式如下：
@@ -173,7 +174,7 @@ class EntityExtractionService:
 章节内容：
 {chapter_content}
 
-已有的设定（不要重复）：
+参考已有的设定名称以避免重复（但请返回所有检测到的设定，系统会在服务端进行最终去重）：
 {existing_settings}
 
 请以 JSON 格式返回，格式如下：
@@ -200,7 +201,9 @@ def _is_similar_name(name1: str, name2: str, threshold: float = 0.7) -> bool:
     判断两个名称是否相似
 
     Args:
-        threshold: 相似度阈值（0-1），默认 0.7
+        name1: 第一个名称
+        name2: 第二个名称
+        threshold: 相似度阈值（0-1），默认 0.7，可通过配置调整
 
     Returns:
         True if similar enough to be considered duplicate
@@ -211,9 +214,11 @@ def _is_similar_name(name1: str, name2: str, threshold: float = 0.7) -> bool:
     return similarity >= threshold
 ```
 
+**配置说明**: 相似度阈值默认为 0.7，可根据实际使用情况在后端配置文件中调整。
+
 **匹配规则**:
-- 相似度 >= 0.7: 视为重复，跳过
-- 相似度 < 0.7: 视为新实体，创建
+- 相似度 >= threshold: 视为重复，跳过
+- 相似度 < threshold: 视为新实体，创建
 
 **示例**:
 - "张三" vs "张小三" → 相似度 0.67 → 创建
@@ -260,7 +265,7 @@ class ExtractedCharacter(BaseModel):
     appearance: Optional[str] = None
     identity: Optional[str] = None
     hometown: Optional[str] = None
-    role: CharacterRole = CharacterRole.SUPPORTING
+    role: CharacterRole = CharacterRole.SUPPORTING  # AI 未明确指定时的默认值
     personality: Optional[str] = None
     core_motivation: Optional[str] = None
     fears: Optional[str] = None
@@ -472,14 +477,14 @@ _deduplicate_world_settings() → 名称相似度匹配
 
 ## 10. 实施步骤
 
-1. ✅ 创建 `EntityExtractionService` 类
-2. ✅ 实现 AI 调用和 Prompt 设计
-3. ✅ 实现名称相似度匹配算法
-4. ✅ 添加 API 端点
-5. ✅ 添加前端按钮和事件处理
-6. ✅ 编写单元测试
-7. ✅ 手动测试验证
-8. ✅ 更新文档
+1. 创建 `EntityExtractionService` 类
+2. 实现 AI 调用和 Prompt 设计
+3. 实现名称相似度匹配算法
+4. 添加 API 端点
+5. 添加前端按钮和事件处理
+6. 编写单元测试
+7. 手动测试验证
+8. 更新文档
 
 ## 11. 风险与限制
 
@@ -497,9 +502,11 @@ _deduplicate_world_settings() → 名称相似度匹配
 
 ## 12. 验收标准
 
-- [ ] 点击按钮后能成功提取实体
-- [ ] 正确去重已存在的实体
-- [ ] 前端显示准确的统计信息
-- [ ] 创建的实体数据完整
-- [ ] 错误情况有友好提示
-- [ ] 性能可接受（< 20 秒）
+本功能需要满足以下验收标准：
+
+1. 点击按钮后能成功提取实体
+2. 正确去重已存在的实体
+3. 前端显示准确的统计信息
+4. 创建的实体数据完整
+5. 错误情况有友好提示
+6. 性能可接受（< 20 秒）
