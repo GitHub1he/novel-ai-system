@@ -718,6 +718,42 @@ const ProjectDetail = () => {
     setEditingSettings(newSettings)
   }
 
+  // 全选/取消全选人物
+  const toggleSelectAllCharacters = () => {
+    const allSelected = editingCharacters.every(c => c.checked || c.is_duplicate)
+    const canSelectCharacters = editingCharacters.filter(c => !c.is_duplicate)
+
+    if (allSelected) {
+      // 取消全选
+      setEditingCharacters(
+        editingCharacters.map(c => ({ ...c, checked: false }))
+      )
+    } else {
+      // 全选
+      setEditingCharacters(
+        editingCharacters.map(c => ({ ...c, checked: !c.is_duplicate }))
+      )
+    }
+  }
+
+  // 全选/取消全选世界观设定
+  const toggleSelectAllSettings = () => {
+    const allSelected = editingSettings.every(s => s.checked || s.is_duplicate)
+    const canSelectSettings = editingSettings.filter(s => !s.is_duplicate)
+
+    if (allSelected) {
+      // 取消全选
+      setEditingSettings(
+        editingSettings.map(s => ({ ...s, checked: false }))
+      )
+    } else {
+      // 全选
+      setEditingSettings(
+        editingSettings.map(s => ({ ...s, checked: !s.is_duplicate }))
+      )
+    }
+  }
+
   if (!project) {
     return (
       <div style={{ textAlign: 'center', padding: '100px' }}>
@@ -1390,8 +1426,21 @@ const ProjectDetail = () => {
                       未检测到人物
                     </div>
                   ) : (
-                    <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
-                      {editingCharacters.map((char: any, index: number) => (
+                    <div>
+                      <div style={{ marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid #f0f0f0' }}>
+                        <Button
+                          type="default"
+                          size="small"
+                          onClick={toggleSelectAllCharacters}
+                        >
+                          {editingCharacters.every(c => c.checked || c.is_duplicate) ? '取消全选' : '全选'}
+                        </Button>
+                        <span style={{ marginLeft: '12px', fontSize: '12px', color: '#999' }}>
+                          已选 {editingCharacters.filter(c => c.checked).length} / {editingCharacters.filter(c => !c.is_duplicate).length} 个可选项
+                        </span>
+                      </div>
+                      <div style={{ maxHeight: '450px', overflowY: 'auto' }}>
+                        {editingCharacters.map((char: any, index: number) => (
                         <Card
                           key={index}
                           size="small"
@@ -1477,6 +1526,7 @@ const ProjectDetail = () => {
                         </Card>
                       ))}
                     </div>
+                    </div>
                   )}
                 </div>
               )
@@ -1491,8 +1541,21 @@ const ProjectDetail = () => {
                       未检测到世界观设定
                     </div>
                   ) : (
-                    <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
-                      {editingSettings.map((setting: any, index: number) => (
+                    <div>
+                      <div style={{ marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid #f0f0f0' }}>
+                        <Button
+                          type="default"
+                          size="small"
+                          onClick={toggleSelectAllSettings}
+                        >
+                          {editingSettings.every(s => s.checked || s.is_duplicate) ? '取消全选' : '全选'}
+                        </Button>
+                        <span style={{ marginLeft: '12px', fontSize: '12px', color: '#999' }}>
+                          已选 {editingSettings.filter(s => s.checked).length} / {editingSettings.filter(s => !s.is_duplicate).length} 个可选项
+                        </span>
+                      </div>
+                      <div style={{ maxHeight: '450px', overflowY: 'auto' }}>
+                        {editingSettings.map((setting: any, index: number) => (
                         <Card
                           key={index}
                           size="small"
@@ -1567,6 +1630,7 @@ const ProjectDetail = () => {
                           </div>
                         </Card>
                       ))}
+                    </div>
                     </div>
                   )}
                 </div>
