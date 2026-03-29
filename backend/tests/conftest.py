@@ -6,6 +6,8 @@ from app.models.project import Project
 from app.models.chapter import Chapter
 from app.models.character import Character
 from app.models.content_generation_draft import ContentGenerationDraft
+from app.models.user import User
+from app.models.world_setting import WorldSetting
 
 
 @pytest.fixture(scope="function")
@@ -60,13 +62,27 @@ def db():
 
 
 @pytest.fixture(scope="function")
-def test_project(db: Session):
+def test_user(db: Session):
+    """创建测试用户"""
+    user = User(
+        id=1,
+        email="test@example.com",
+        username="testuser",
+        hashed_password="hashed_password"
+    )
+    db.add(user)
+    db.flush()
+    return user
+
+
+@pytest.fixture(scope="function")
+def test_project(db: Session, test_user: User):
     """创建测试项目"""
     project = Project(
         title="Test Project",
         author="Test Author",
         genre="测试类型",
-        user_id=1
+        user_id=test_user.id
     )
     db.add(project)
     db.flush()
