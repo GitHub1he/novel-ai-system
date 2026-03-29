@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     OPENAI_API_BASE: str = "https://open.bigmodel.cn/api/paas/v4/"  # 智谱AI API端点
     AI_MODEL: str = "glm-4-flash"  # 默认使用GLM-4 Flash（速度快、成本低）
 
+    # 实体提取配置
+    ENTITY_SIMILARITY_THRESHOLD: float = 0.7  # 名称相似度阈值（0-1）
+
     # CORS配置
     BACKEND_CORS_ORIGINS: list = [
         "http://localhost:3000",
