@@ -754,6 +754,23 @@ const ProjectDetail = () => {
     }
   }
 
+  // 世界观设定类型中文映射
+  const settingTypeMap: Record<string, string> = {
+    era: '时代背景',
+    region: '地域/地点',
+    rule: '规则',
+    culture: '文化习俗',
+    power: '权力结构',
+    location: '具体地点',
+    faction: '势力/组织',
+    item: '重要物品',
+    event: '历史事件'
+  }
+
+  const getSettingTypeLabel = (type: string) => {
+    return settingTypeMap[type] || type
+  }
+
   if (!project) {
     return (
       <div style={{ textAlign: 'center', padding: '100px' }}>
@@ -1582,7 +1599,7 @@ const ProjectDetail = () => {
                                     </Tag>
                                   )}
                                   <Tag color="blue">
-                                    {setting.setting_type}
+                                    {getSettingTypeLabel(setting.setting_type)}
                                   </Tag>
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
