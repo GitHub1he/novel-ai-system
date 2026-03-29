@@ -225,7 +225,7 @@ def delete_world_setting(
         db.delete(setting)
         db.commit()
 
-        logger.info(f"删除世界观设定成功: {setting_name} (ID: {setting_id})")
+        logger.info(f"删除世界观设定成功: {setting_name} (ID: {setting.id})")
 
         return {
             "code": 200,
