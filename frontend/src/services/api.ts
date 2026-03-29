@@ -209,12 +209,31 @@ export const versionApi = {
 }
 
 /**
- * 从章节提取实体
+ * 检测章节中的实体（不保存）
  * @param chapterId 章节 ID
- * @returns 提取结果
+ * @returns 检测到的实体列表
  */
-export const extractEntitiesFromChapter = async (chapterId: number) => {
-  const response = await api.post(`/chapters/${chapterId}/extract-entities`)
+export const detectEntitiesFromChapter = async (chapterId: number) => {
+  const response = await api.get(`/chapters/${chapterId}/detect-entities`)
+  return response.data
+}
+
+/**
+ * 批量创建实体
+ * @param chapterId 章节 ID
+ * @param characters 要创建的人物列表
+ * @param worldSettings 要创建的世界观设定列表
+ * @returns 创建结果
+ */
+export const createEntities = async (
+  chapterId: number,
+  characters: any[],
+  worldSettings: any[]
+) => {
+  const response = await api.post(`/chapters/${chapterId}/create-entities`, {
+    characters,
+    world_settings: worldSettings
+  })
   return response.data
 }
 

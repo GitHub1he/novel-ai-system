@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Layout, List, Button, Input, Card, Empty, Spin, Tabs, Space, Modal, message, Select, Popconfirm, Progress, Dropdown, Menu } from 'antd'
+import { Layout, List, Button, Input, Card, Empty, Spin, Tabs, Space, Modal, message, Select, Popconfirm, Progress, Dropdown, Menu, Checkbox, Tag } from 'antd'
 const { TextArea } = Input
 import {
   BulbOutlined,
@@ -17,7 +17,7 @@ import {
   SearchOutlined,
   ScanOutlined,
 } from '@ant-design/icons'
-import { projectApi, chapterApi, extractEntitiesFromChapter } from '../services/api'
+import { projectApi, chapterApi, detectEntitiesFromChapter, createEntities } from '../services/api'
 import CharacterManagement from '../components/CharacterManagement'
 import WorldSettingManagement from '../components/WorldSettingManagement'
 import ProjectStyleSettings from '../components/ProjectStyleSettings'
@@ -87,6 +87,15 @@ const ProjectDetail = () => {
   const [aiEditPosition, setAiEditPosition] = useState<number>(0)
   const [selectedText, setSelectedText] = useState('')
   const [extracting, setExtracting] = useState<Record<number, boolean>>({})
+  // 实体预览弹窗相关状态
+  const [entityPreviewVisible, setEntityPreviewVisible] = useState(false)
+  const [detectedEntities, setDetectedEntities] = useState<any>({
+    characters: [],
+    world_settings: []
+  })
+  const [selectedCharacters, setSelectedCharacters] = useState<any[]>([])
+  const [selectedSettings, setSelectedSettings] = useState<any[]>([])
+  const [currentChapterId, setCurrentChapterId] = useState<number | null>(null)
 
   useEffect(() => {
     fetchProject()
@@ -626,18 +635,49 @@ const ProjectDetail = () => {
     setExtracting({ ...extracting, [chapterId]: true })
 
     try {
-      const result = await extractEntitiesFromChapter(chapterId)
+      const result = await detectEntitiesFromChapter(chapterId)
 
-      const addedChars = result.data.characters.added
-      const addedSettings = result.data.world_settings.added
+      setDetectedEntities(result.data)
+      setCurrentChapterId(chapterId)
 
-      if (addedChars > 0 || addedSettings > 0) {
-        message.success(
-          `成功添加 ${addedChars} 个人物，${addedSettings} 个世界观设定`
-        )
-      } else {
-        message.info('未发现新的人物或世界观设定')
+      // 默认选中所有非重复的实体
+      setSelectedCharacters(
+        result.data.characters
+          .filter((c: any) => !c.is_duplicate)
+          .map((c: any) => ({ ...c, checked: true }))
+      )
+      setSelectedSettings(
+        result.data.world_settings
+          .filter((s: any) => !s.is_duplicate)
+          .map((s: any) => ({ ...s, checked: true }))
+      )
+
+      // 显示预览弹窗
+      setEntityPreviewVisible(true)
+
+    } catch (error: any) {
+      console.error('检测实体失败:', error)
+      message.error(error.response?.data?.message || '检测实体失败，请稍后重试')
+    } finally {
+      setExtracting({ ...extracting, [chapterId]: false })
+    }
+  }
+
+  const handleConfirmCreateEntities = async () => {
+    if (!currentChapterId) return
+
+    try {
+      const charactersToCreate = selectedCharacters.filter(c => c.checked)
+      const settingsToCreate = selectedSettings.filter(s => s.checked)
+
+      if (charactersToCreate.length === 0 && settingsToCreate.length === 0) {
+        message.info('请选择要添加的实体')
+        return
       }
+
+      await createEntities(currentChapterId, charactersToCreate, settingsToCreate)
+
+      message.success('实体添加成功')
 
       // 刷新人物和世界观列表
       await Promise.all([
@@ -645,11 +685,12 @@ const ProjectDetail = () => {
         fetchWorldSettings()
       ])
 
+      // 关闭弹窗
+      setEntityPreviewVisible(false)
+
     } catch (error: any) {
-      console.error('提取实体失败:', error)
-      message.error(error.response?.data?.message || '提取实体失败，请稍后重试')
-    } finally {
-      setExtracting({ ...extracting, [chapterId]: false })
+      console.error('创建实体失败:', error)
+      message.error(error.response?.data?.message || '创建实体失败，请稍后重试')
     }
   }
 
@@ -1301,6 +1342,143 @@ const ProjectDetail = () => {
         onSelect={handleSelectVersion}
         onClose={() => setVersionPreviewVisible(false)}
       />
+
+      {/* 实体预览和确认弹窗 */}
+      <Modal
+        title="提取到的实体"
+        open={entityPreviewVisible}
+        onOk={handleConfirmCreateEntities}
+        onCancel={() => setEntityPreviewVisible(false)}
+        width={800}
+        okText="确认添加"
+        cancelText="取消"
+      >
+        <Tabs
+          defaultActiveKey="characters"
+          items={[
+            {
+              key: 'characters',
+              label: `人物 (${selectedCharacters.length})`,
+              children: (
+                <div>
+                  {detectedEntities.characters.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
+                      未检测到人物
+                    </div>
+                  ) : (
+                    <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                      {detectedEntities.characters.map((char: any, index: number) => {
+                        const isChecked = selectedCharacters.some(c => c.name === char.name && c.checked)
+                        return (
+                          <Card
+                            key={index}
+                            size="small"
+                            style={{ marginBottom: '10px' }}
+                            hoverable
+                          >
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                              <Checkbox
+                                checked={isChecked}
+                                disabled={char.is_duplicate}
+                                onChange={(e) => {
+                                  const newSelected = [...selectedCharacters]
+                                  const existingIndex = newSelected.findIndex(c => c.name === char.name)
+                                  if (existingIndex >= 0) {
+                                    newSelected[existingIndex].checked = e.target.checked
+                                  } else {
+                                    newSelected.push({ ...char, checked: e.target.checked })
+                                  }
+                                  setSelectedCharacters(newSelected)
+                                }}
+                              />
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+                                  {char.name || '(未命名)'}
+                                  {char.is_duplicate && (
+                                    <Tag color="orange" style={{ marginLeft: '8px' }}>
+                                      已存在
+                                    </Tag>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: '12px', color: '#666' }}>
+                                  {char.identity && <div>身份: {char.identity}</div>}
+                                  {char.age && <div>年龄: {char.age}</div>}
+                                  {char.gender && <div>性别: {char.gender}</div>}
+                                  {char.role && <div>角色: {char.role}</div>}
+                                </div>
+                              </div>
+                            </div>
+                          </Card>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            },
+            {
+              key: 'world_settings',
+              label: `世界观设定 (${selectedSettings.length})`,
+              children: (
+                <div>
+                  {detectedEntities.world_settings.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
+                      未检测到世界观设定
+                    </div>
+                  ) : (
+                    <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                      {detectedEntities.world_settings.map((setting: any, index: number) => {
+                        const isChecked = selectedSettings.some(s => s.name === setting.name && s.checked)
+                        return (
+                          <Card
+                            key={index}
+                            size="small"
+                            style={{ marginBottom: '10px' }}
+                            hoverable
+                          >
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                              <Checkbox
+                                checked={isChecked}
+                                disabled={setting.is_duplicate}
+                                onChange={(e) => {
+                                  const newSelected = [...selectedSettings]
+                                  const existingIndex = newSelected.findIndex(s => s.name === setting.name)
+                                  if (existingIndex >= 0) {
+                                    newSelected[existingIndex].checked = e.target.checked
+                                  } else {
+                                    newSelected.push({ ...setting, checked: e.target.checked })
+                                  }
+                                  setSelectedSettings(newSelected)
+                                }}
+                              />
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+                                  {setting.name || '(未命名)'}
+                                  {setting.is_duplicate && (
+                                    <Tag color="orange" style={{ marginLeft: '8px' }}>
+                                      已存在
+                                    </Tag>
+                                  )}
+                                  <Tag color="blue" style={{ marginLeft: '8px' }}>
+                                    {setting.setting_type}
+                                  </Tag>
+                                </div>
+                                <div style={{ fontSize: '12px', color: '#666' }}>
+                                  {setting.description && <div>{setting.description}</div>}
+                                </div>
+                              </div>
+                            </div>
+                          </Card>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            }
+          ]}
+        />
+      </Modal>
     </Layout>
   )
 }

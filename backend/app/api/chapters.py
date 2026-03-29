@@ -818,18 +818,16 @@ def generate_text(
         raise BusinessException(f"生成失败: {str(e)}")
 
 
-@router.post("/{chapter_id}/extract-entities", summary="从章节提取实体")
-def extract_entities_from_chapter(
+@router.get("/{chapter_id}/detect-entities", summary="检测章节中的实体（不保存）")
+def detect_entities_from_chapter(
     chapter_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    从章节内容中提取人物和世界观设定
+    从章节内容中检测人物和世界观设定（不保存到数据库）
 
-    返回统计信息：
-    - characters: {"added": 数量, "skipped": 数量}
-    - world_settings: {"added": 数量, "skipped": 数量}
+    返回检测到的实体列表，供用户预览和编辑
     """
     # 获取章节
     chapter = db.query(Chapter).filter(Chapter.id == chapter_id).first()
@@ -848,28 +846,133 @@ def extract_entities_from_chapter(
         from app.services.ai_service import ai_service
         entity_extraction_service.ai_service = ai_service
 
-        # 提取人物
-        characters_result = entity_extraction_service.extract_characters(
-            db=db,
-            project_id=project.id,
-            content=chapter.content
+        # 获取已有人物和设定
+        existing_characters = db.query(Character).filter(
+            Character.project_id == project.id
+        ).all()
+
+        existing_settings = db.query(WorldSetting).filter(
+            WorldSetting.project_id == project.id
+        ).all()
+
+        # AI 检测人物
+        detected_characters = entity_extraction_service._detect_characters(
+            content=chapter.content,
+            existing_characters=existing_characters
         )
 
-        # 提取世界观设定
-        settings_result = entity_extraction_service.extract_world_settings(
-            db=db,
-            project_id=project.id,
-            content=chapter.content
+        # AI 检测世界观设定
+        detected_settings = entity_extraction_service._detect_world_settings(
+            content=chapter.content,
+            existing_settings=existing_settings
         )
 
-        # 构建响应
+        # 标记重复实体
+        characters_with_status = []
+        for char_data in detected_characters:
+            char_name = char_data.get("name", "")
+            is_duplicate = any(
+                entity_extraction_service._is_similar_name(char_name, existing_char.name)
+                for existing_char in existing_characters
+            )
+            characters_with_status.append({
+                **char_data,
+                "is_duplicate": is_duplicate
+            })
+
+        settings_with_status = []
+        for setting_data in detected_settings:
+            setting_name = setting_data.get("name", "")
+            is_duplicate = any(
+                entity_extraction_service._is_similar_name(setting_name, existing_setting.name)
+                for existing_setting in existing_settings
+            )
+            settings_with_status.append({
+                **setting_data,
+                "is_duplicate": is_duplicate
+            })
+
+        return {
+            "code": 200,
+            "message": f"检测到 {len(characters_with_status)} 个人物，{len(settings_with_status)} 个世界观设定",
+            "data": {
+                "characters": characters_with_status,
+                "world_settings": settings_with_status
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"检测实体失败: {e}")
+        raise BusinessException(f"检测实体失败: {str(e)}")
+
+
+@router.post("/{chapter_id}/create-entities", summary="批量创建实体")
+def create_entities(
+    chapter_id: int,
+    characters: List[Dict[str, Any]] = Body([]),
+    world_settings: List[Dict[str, Any]] = Body([]),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    批量创建用户确认后的人物和世界观设定
+
+    Body:
+    - characters: 要创建的人物列表
+    - world_settings: 要创建的世界观设定列表
+    """
+    # 获取章节
+    chapter = db.query(Chapter).filter(Chapter.id == chapter_id).first()
+    if not chapter:
+        raise NotFoundException("章节不存在")
+
+    # 验证项目权限
+    project = require_project(chapter.project_id, current_user, db)
+
+    try:
+        from app.schemas.entity_extraction import ExtractedCharacter, ExtractedWorldSetting
+
+        # 创建人物
+        added_characters = 0
+        for char_data in characters:
+            try:
+                validated_char = ExtractedCharacter(**char_data)
+                new_char = Character(
+                    project_id=project.id,
+                    **validated_char.model_dump(exclude_unset=True)
+                )
+                db.add(new_char)
+                added_characters += 1
+                logger.info(f"创建人物: {validated_char.name}")
+            except Exception as e:
+                logger.error(f"创建人物失败: {e}, 数据: {char_data}")
+                continue
+
+        # 创建世界观设定
+        added_settings = 0
+        for setting_data in world_settings:
+            try:
+                validated_setting = ExtractedWorldSetting(**setting_data)
+                new_setting = WorldSetting(
+                    project_id=project.id,
+                    **validated_setting.model_dump(exclude_unset=True)
+                )
+                db.add(new_setting)
+                added_settings += 1
+                logger.info(f"创建世界观设定: {validated_setting.name}")
+            except Exception as e:
+                logger.error(f"创建世界观设定失败: {e}, 数据: {setting_data}")
+                continue
+
+        db.commit()
+
         message_parts = []
-        if characters_result["added"] > 0:
-            message_parts.append(f"{characters_result['added']} 个人物")
-        if settings_result["added"] > 0:
-            message_parts.append(f"{settings_result['added']} 个世界观设定")
+        if added_characters > 0:
+            message_parts.append(f"{added_characters} 个人物")
+        if added_settings > 0:
+            message_parts.append(f"{added_settings} 个世界观设定")
 
-        message_text = "、".join(message_parts) if message_parts else "未发现新实体"
+        message_text = "、".join(message_parts) if message_parts else "未添加任何实体"
         if not message_text.startswith("未"):
             message_text = f"成功添加 {message_text}"
 
@@ -877,13 +980,14 @@ def extract_entities_from_chapter(
             "code": 200,
             "message": message_text,
             "data": {
-                "characters": characters_result,
-                "world_settings": settings_result
+                "characters_added": added_characters,
+                "world_settings_added": added_settings
             }
         }
 
     except Exception as e:
-        logger.error(f"提取实体失败: {e}")
-        raise BusinessException(f"提取实体失败: {str(e)}")
+        logger.error(f"创建实体失败: {e}")
+        db.rollback()
+        raise BusinessException(f"创建实体失败: {str(e)}")
 
 
