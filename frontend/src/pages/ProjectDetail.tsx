@@ -15,8 +15,9 @@ import {
   MoreOutlined,
   DownOutlined,
   SearchOutlined,
+  ScanOutlined,
 } from '@ant-design/icons'
-import { projectApi, chapterApi } from '../services/api'
+import { projectApi, chapterApi, extractEntitiesFromChapter } from '../services/api'
 import CharacterManagement from '../components/CharacterManagement'
 import WorldSettingManagement from '../components/WorldSettingManagement'
 import ProjectStyleSettings from '../components/ProjectStyleSettings'
@@ -85,6 +86,7 @@ const ProjectDetail = () => {
   const [aiEditMode, setAiEditMode] = useState<'replace' | 'insert_before' | 'insert_after'>('replace')
   const [aiEditPosition, setAiEditPosition] = useState<number>(0)
   const [selectedText, setSelectedText] = useState('')
+  const [extracting, setExtracting] = useState<Record<number, boolean>>({})
 
   useEffect(() => {
     fetchProject()
@@ -620,6 +622,37 @@ const ProjectDetail = () => {
     message.success('✅ 已应用上下文设定，正在打开高级生成...')
   }
 
+  const handleExtractEntities = async (chapterId: number) => {
+    setExtracting({ ...extracting, [chapterId]: true })
+
+    try {
+      const result = await extractEntitiesFromChapter(chapterId)
+
+      const addedChars = result.data.characters.added
+      const addedSettings = result.data.world_settings.added
+
+      if (addedChars > 0 || addedSettings > 0) {
+        message.success(
+          `成功添加 ${addedChars} 个人物，${addedSettings} 个世界观设定`
+        )
+      } else {
+        message.info('未发现新的人物或世界观设定')
+      }
+
+      // 刷新人物和世界观列表
+      await Promise.all([
+        fetchCharacters(),
+        fetchWorldSettings()
+      ])
+
+    } catch (error: any) {
+      console.error('提取实体失败:', error)
+      message.error(error.response?.data?.message || '提取实体失败，请稍后重试')
+    } finally {
+      setExtracting({ ...extracting, [chapterId]: false })
+    }
+  }
+
   if (!project) {
     return (
       <div style={{ textAlign: 'center', padding: '100px' }}>
@@ -719,6 +752,15 @@ const ProjectDetail = () => {
                               style={{ borderColor: '#d9d9d9' }}
                             >
                               编辑大纲
+                            </Button>
+                            <Button
+                              type="default"
+                              icon={<ScanOutlined />}
+                              onClick={() => handleExtractEntities(currentChapter.id)}
+                              loading={extracting[currentChapter.id]}
+                              disabled={!currentChapter.content}
+                            >
+                              提取实体
                             </Button>
                             <Dropdown
                               menu={{
