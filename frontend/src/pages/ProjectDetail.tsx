@@ -674,7 +674,10 @@ const ProjectDetail = () => {
       // 过滤出选中的实体，并移除不需要的字段
       const charactersToCreate = editingCharacters
         .filter(c => c.checked)
-        .map(({ checked, is_duplicate, ...rest }) => rest)
+        .map(({ checked, is_duplicate, age, ...rest }) => ({
+          ...rest,
+          age: age ? (typeof age === 'string' ? parseInt(age) : age) : null
+        }))
 
       const settingsToCreate = editingSettings
         .filter(s => s.checked)
@@ -1498,7 +1501,10 @@ const ProjectDetail = () => {
                                     <label style={{ fontSize: '12px', color: '#666' }}>年龄</label>
                                     <Input
                                       value={char.age || ''}
-                                      onChange={(e) => updateCharacter(index, 'age', e.target.value ? parseInt(e.target.value) : null)}
+                                      onChange={(e) => {
+                                        const value = e.target.value
+                                        updateCharacter(index, 'age', value ? parseInt(value) : null)
+                                      }}
                                       placeholder="年龄"
                                       size="small"
                                       type="number"
