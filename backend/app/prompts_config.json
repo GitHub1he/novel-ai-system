@@ -38,6 +38,14 @@
 
     "context_build_creation_requirements": "\n## ✍️ 创作要求\n1. 严格遵循以上人物设定和世界观规则\n2. 保持人物性格一致，言行符合其设定\n3. 尊重核心规则，不要自相矛盾\n4. 细节描写要丰富，对话要符合人物性格\n5. 根据用户提示词进行创作，但要结合设定\n",
 
-    "old_chapter_generation": "你是一个专业的小说创作助手。根据以下设定和用户要求，创作小说内容。\n\n{context}\n\n创作要求：\n1. 字数约{word_count}字\n2. 保持人物性格一致\n3. 遵守世界观设定\n{style_section}"
+    "old_chapter_generation": "你是一个专业的小说创作助手。根据以下设定和用户要求，创作小说内容。\n\n{context}\n\n创作要求：\n1. 字数约{word_count}字\n2. 保持人物性格一致\n3. 遵守世界观设定\n{style_section}",
+
+    "entity_extraction_character_system": "你是一个专业的小说人物分析助手。",
+
+    "entity_extraction_character_user": "请分析以下小说章节内容，提取出所有**有具体姓名**的人物。\n\n**重要筛选规则**：\n1. **只提取有具体姓名的角色**（如：张三、李四、王五）\n2. **不要提取泛指词**，如：\n   - 游客、路人、群众、百姓、村民、弟子们、剑客们\n   - 男人、女人、老人、孩子、青年\n   - 大家、众人、人们\n   - 黑衣人、白衣人（除非有具体名字）\n3. 只提取在故事中**有角色作用**的具名人物\n\n对于每个人物，请提取以下信息：\n- name: 姓名（必须，必须是具体姓名）\n- age: 年龄（数字）\n- gender: 性别\n- appearance: 外貌描述\n- identity: 身份/职业\n- hometown: 籍贯\n- role: 角色类型（protagonist/antagonist/supporting/minor）\n  注意：根据人物在故事中的作用判断类型，如果无法确定，默认使用 \"supporting\"\n- personality: 性格特点（逗号分隔的标签）\n- core_motivation: 核心动机\n- fears: 恐惧的事物\n- desires: 渴望的事物\n\n章节内容：\n{chapter_content}\n\n参考已有的人物名称以避免重复（但请返回所有检测到的人物，系统会在服务端进行最终去重）：\n{existing_characters}\n\n请以 JSON 格式返回，格式如下：\n{{\n  \"characters\": [\n    {{\n      \"name\": \"张三\",\n      \"age\": 25,\n      \"gender\": \"男\",\n      \"appearance\": \"身材高大，眉目清秀\",\n      \"identity\": \"剑客\",\n      \"role\": \"supporting\"\n    }}\n  ]\n}}\n\n只返回 JSON，不要有其他内容。",
+
+    "entity_extraction_world_setting_system": "你是一个专业的小说世界观分析助手。",
+
+    "entity_extraction_world_setting_user": "请分析以下小说章节内容，提取出**重要的**世界观设定。\n\n**重要筛选规则**：\n1. **只提取重要的、对世界观构建有实质性作用的设定**\n2. **不要提取琐碎的日常细节**，如：\n   - 普通桌椅、门窗、茶杯等日常用品（除非是特殊物品）\n   - 一般性的动作描写、天气描写\n   - 普通的房屋、街道等非重要地点\n3. **优先提取**：\n   - 组织、门派、势力、机构（faction）\n   - 具有特殊意义的地点（location）\n   - 重要的规则、法术体系（rule）\n   - 特殊的时代背景（era）\n   - 重要的事件（event）\n   - 特殊的文化习俗（culture）\n   - 重要的权力结构（power）\n   - 特殊物品（item）\n\n类型包括：\n- era: 时代背景\n- region: 地域/地点\n- rule: 规则（魔法/科技体系）\n- culture: 文化习俗\n- power: 权力结构\n- location: 具体地点\n- faction: 势力/组织\n- item: 重要物品\n- event: 历史事件\n\n对于每个设定，请提取：\n- name: 名称（必须）\n- setting_type: 类型（从上述类型中选择）\n- description: 详细描述\n- attributes: 扩展属性（JSON 对象）\n- is_core_rule: 是否为核心规则（0或1）\n\n章节内容：\n{chapter_content}\n\n参考已有的设定名称以避免重复（但请返回所有检测到的设定，系统会在服务端进行最终去重）：\n{existing_settings}\n\n请以 JSON 格式返回，格式如下：\n{{\n  \"world_settings\": [\n    {{\n      \"name\": \"青云剑派\",\n      \"setting_type\": \"faction\",\n      \"description\": \"江湖上著名的剑术门派\",\n      \"attributes\": {{\"founding_year\": \"明朝\", \"location\": \"华山\"}},\n      \"is_core_rule\": 0\n    }}\n  ]\n}}\n\n只返回 JSON，不要有其他内容。"
   }
 }

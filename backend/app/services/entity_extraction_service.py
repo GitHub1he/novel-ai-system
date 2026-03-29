@@ -10,6 +10,8 @@ from app.services.ai_service import AIService
 from app.core.config import settings
 from app.core.logger import logger
 from difflib import SequenceMatcher
+import json
+import os
 
 
 class EntityExtractionService:
@@ -17,6 +19,31 @@ class EntityExtractionService:
 
     def __init__(self, ai_service: Optional[AIService] = None):
         self.ai_service = ai_service
+        self.prompts_config = self._load_prompts_config()
+
+    def _load_prompts_config(self) -> dict:
+        """
+        加载提示词配置文件
+
+        Returns:
+            提示词配置字典
+        """
+        try:
+            # 获取 app 目录（services 的上级目录）
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            app_dir = os.path.dirname(current_dir)
+            config_path = os.path.join(app_dir, 'prompts_config.json')
+
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                logger.info(f"成功加载提示词配置文件: {config_path}")
+                return config.get('prompts', {})
+        except FileNotFoundError:
+            logger.error(f"提示词配置文件不存在: {config_path}")
+            return {}
+        except Exception as e:
+            logger.error(f"加载提示词配置文件失败: {e}")
+            return {}
 
     def _is_similar_name(
         self,
@@ -142,59 +169,25 @@ class EntityExtractionService:
         existing_names = [char.name for char in existing_characters]
         existing_str = ", ".join(existing_names) if existing_names else "无"
 
-        # 构建 prompt
-        prompt = f"""请分析以下小说章节内容，提取出所有**有具体姓名**的人物。
+        # 从配置文件获取提示词模板
+        system_prompt = self.prompts_config.get('entity_extraction_character_system', '你是一个专业的小说人物分析助手。')
+        user_prompt_template = self.prompts_config.get('entity_extraction_character_user', '')
 
-**重要筛选规则**：
-1. **只提取有具体姓名的角色**（如：张三、李四、王五）
-2. **不要提取泛指词**，如：
-   - 游客、路人、群众、百姓、村民、弟子们、剑客们
-   - 男人、女人、老人、孩子、青年
-   - 大家、众人、人们
-   - 黑衣人、白衣人（除非有具体名字）
-3. 只提取在故事中**有角色作用**的具名人物
+        if not user_prompt_template:
+            logger.error("提示词配置中缺少 entity_extraction_character_user")
+            return []
 
-对于每个人物，请提取以下信息：
-- name: 姓名（必须，必须是具体姓名）
-- age: 年龄（数字）
-- gender: 性别
-- appearance: 外貌描述
-- identity: 身份/职业
-- hometown: 籍贯
-- role: 角色类型（protagonist/antagonist/supporting/minor）
-  注意：根据人物在故事中的作用判断类型，如果无法确定，默认使用 "supporting"
-- personality: 性格特点（逗号分隔的标签）
-- core_motivation: 核心动机
-- fears: 恐惧的事物
-- desires: 渴望的事物
-
-章节内容：
-{content}
-
-参考已有的人物名称以避免重复（但请返回所有检测到的人物，系统会在服务端进行最终去重）：
-{existing_str}
-
-请以 JSON 格式返回，格式如下：
-{{
-  "characters": [
-    {{
-      "name": "张三",
-      "age": 25,
-      "gender": "男",
-      "appearance": "身材高大，眉目清秀",
-      "identity": "剑客",
-      "role": "supporting"
-    }}
-  ]
-}}
-
-只返回 JSON，不要有其他内容。"""
+        # 构建完整的 prompt
+        prompt = user_prompt_template.format(
+            chapter_content=content,
+            existing_characters=existing_str
+        )
 
         try:
             response = self.ai_service.client.chat.completions.create(
                 model=settings.AI_MODEL,
                 messages=[
-                    {"role": "system", "content": "你是一个专业的小说人物分析助手。"},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3
@@ -203,7 +196,6 @@ class EntityExtractionService:
             result_text = response.choices[0].message.content.strip()
 
             # 尝试解析 JSON
-            import json
             # 移除可能的 markdown 代码块标记
             if result_text.startswith("```json"):
                 result_text = result_text[7:]
@@ -249,69 +241,25 @@ class EntityExtractionService:
         existing_names = [setting.name for setting in existing_settings]
         existing_str = ", ".join(existing_names) if existing_names else "无"
 
-        # 构建 prompt
-        prompt = f"""请分析以下小说章节内容，提取出**重要的**世界观设定。
+        # 从配置文件获取提示词模板
+        system_prompt = self.prompts_config.get('entity_extraction_world_setting_system', '你是一个专业的小说世界观分析助手。')
+        user_prompt_template = self.prompts_config.get('entity_extraction_world_setting_user', '')
 
-**重要筛选规则**：
-1. **只提取重要的、对世界观构建有实质性作用的设定**
-2. **不要提取琐碎的日常细节**，如：
-   - 普通桌椅、门窗、茶杯等日常用品（除非是特殊物品）
-   - 一般性的动作描写、天气描写
-   - 普通的房屋、街道等非重要地点
-3. **优先提取**：
-   - 组织、门派、势力、机构（faction）
-   - 具有特殊意义的地点（location）
-   - 重要的规则、法术体系（rule）
-   - 特殊的时代背景（era）
-   - 重要的事件（event）
-   - 特殊的文化习俗（culture）
-   - 重要的权力结构（power）
-   - 特殊物品（item）
+        if not user_prompt_template:
+            logger.error("提示词配置中缺少 entity_extraction_world_setting_user")
+            return []
 
-类型包括：
-- era: 时代背景
-- region: 地域/地点
-- rule: 规则（魔法/科技体系）
-- culture: 文化习俗
-- power: 权力结构
-- location: 具体地点
-- faction: 势力/组织
-- item: 重要物品
-- event: 历史事件
-
-对于每个设定，请提取：
-- name: 名称（必须）
-- setting_type: 类型（从上述类型中选择）
-- description: 详细描述
-- attributes: 扩展属性（JSON 对象）
-- is_core_rule: 是否为核心规则（0或1）
-
-章节内容：
-{content}
-
-参考已有的设定名称以避免重复（但请返回所有检测到的设定，系统会在服务端进行最终去重）：
-{existing_str}
-
-请以 JSON 格式返回，格式如下：
-{{
-  "world_settings": [
-    {{
-      "name": "青云剑派",
-      "setting_type": "faction",
-      "description": "江湖上著名的剑术门派",
-      "attributes": {{"founding_year": "明朝", "location": "华山"}},
-      "is_core_rule": 0
-    }}
-  ]
-}}
-
-只返回 JSON，不要有其他内容。"""
+        # 构建完整的 prompt
+        prompt = user_prompt_template.format(
+            chapter_content=content,
+            existing_settings=existing_str
+        )
 
         try:
             response = self.ai_service.client.chat.completions.create(
                 model=settings.AI_MODEL,
                 messages=[
-                    {"role": "system", "content": "你是一个专业的小说世界观分析助手。"},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3
@@ -320,7 +268,6 @@ class EntityExtractionService:
             result_text = response.choices[0].message.content.strip()
 
             # 尝试解析 JSON
-            import json
             # 移除可能的 markdown 代码块标记
             if result_text.startswith("```json"):
                 result_text = result_text[7:]
