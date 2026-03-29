@@ -680,20 +680,25 @@ const ProjectDetail = () => {
         .filter(s => s.checked)
         .map(({ checked, is_duplicate, ...rest }) => rest)
 
+      console.log('准备创建实体:', { charactersToCreate, settingsToCreate })
+
       if (charactersToCreate.length === 0 && settingsToCreate.length === 0) {
         message.info('请选择要添加的实体')
         return
       }
 
-      await createEntities(entityExtractionChapterId, charactersToCreate, settingsToCreate)
+      const result = await createEntities(entityExtractionChapterId, charactersToCreate, settingsToCreate)
 
-      message.success('实体添加成功')
+      console.log('创建实体响应:', result)
+      message.success(result.message || '实体添加成功')
 
       // 刷新人物和世界观列表
+      console.log('刷新前 - 人物数量:', characters.length, '世界观数量:', worldSettings.length)
       await Promise.all([
         fetchCharacters(),
         fetchWorldSettings()
       ])
+      console.log('刷新后 - 人物数量:', characters.length, '世界观数量:', worldSettings.length)
 
       // 关闭弹窗
       setEntityPreviewVisible(false)

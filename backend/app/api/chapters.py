@@ -966,6 +966,8 @@ def create_entities(
 
         db.commit()
 
+        logger.info(f"实体创建完成: 项目ID={project.id}, 添加人物={added_characters}个, 添加世界观设定={added_settings}个")
+
         message_parts = []
         if added_characters > 0:
             message_parts.append(f"{added_characters} 个人物")
