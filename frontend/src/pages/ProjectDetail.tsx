@@ -95,7 +95,7 @@ const ProjectDetail = () => {
   })
   const [selectedCharacters, setSelectedCharacters] = useState<any[]>([])
   const [selectedSettings, setSelectedSettings] = useState<any[]>([])
-  const [currentChapterId, setCurrentChapterId] = useState<number | null>(null)
+  const [entityExtractionChapterId, setEntityExtractionChapterId] = useState<number | null>(null)
 
   useEffect(() => {
     fetchProject()
@@ -638,7 +638,7 @@ const ProjectDetail = () => {
       const result = await detectEntitiesFromChapter(chapterId)
 
       setDetectedEntities(result.data)
-      setCurrentChapterId(chapterId)
+      setEntityExtractionChapterId(chapterId)
 
       // 默认选中所有非重复的实体
       setSelectedCharacters(
@@ -664,7 +664,7 @@ const ProjectDetail = () => {
   }
 
   const handleConfirmCreateEntities = async () => {
-    if (!currentChapterId) return
+    if (!entityExtractionChapterId) return
 
     try {
       const charactersToCreate = selectedCharacters.filter(c => c.checked)
@@ -675,7 +675,7 @@ const ProjectDetail = () => {
         return
       }
 
-      await createEntities(currentChapterId, charactersToCreate, settingsToCreate)
+      await createEntities(entityExtractionChapterId, charactersToCreate, settingsToCreate)
 
       message.success('实体添加成功')
 
