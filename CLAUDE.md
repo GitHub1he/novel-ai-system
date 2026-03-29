@@ -70,7 +70,7 @@ docker-compose exec postgres psql -U novel_ai_user -d novel_ai_db
 - **`core/`**: Configuration, database connection, exception handlers, logging
 - **`models/`**: SQLAlchemy ORM models (User, Project, Chapter, Character, WorldSetting, PlotNode)
 - **`schemas/`**: Pydantic models for request/response validation
-- **`services/`**: Business logic (AI generation service)
+- **`services/`**: Business logic (AI generation service, entity extraction service)
 
 ### Frontend Structure (`frontend/src/`)
 - **`pages/`**: Main pages (Dashboard, ProjectDetail, Login, Register)
@@ -96,7 +96,17 @@ All API responses follow this structure:
 **3. AI Service Integration**
 The `AIService` class (`backend/app/services/ai_service.py`) integrates with ZhipuAI GLM-4 but supports any OpenAI-compatible API. It builds context from project settings, characters, and world-building to generate content with consistency.
 
-**4. Exception Handling**
+**5. AI Entity Extraction**
+The `EntityExtractionService` class (`backend/app/services/entity_extraction_service.py`) provides automatic entity extraction from chapter content:
+- **人物提取**: Analyzes chapters to identify characters with full attributes (name, age, gender, appearance, role, personality, etc.)
+- **世界观设定提取**: Detects world-building elements (factions, locations, rules, items, events, etc.)
+- **智能去重**: Uses name similarity matching (threshold 0.7) to avoid duplicate entities
+- **数据验证**: Pydantic schemas ensure AI-generated data is valid before database insertion
+- **完整流程**: AI detection → Deduplication → Validation → Database creation
+
+**Configuration**: `ENTITY_SIMILARITY_THRESHOLD` in `.env` controls the similarity threshold (default: 0.7)
+
+**6. Exception Handling**
 Custom exceptions in `backend/app/core/exception_handler.py`:
 - `NotFoundException`: Resource not found (404)
 - `BusinessException`: Business logic errors (400)
@@ -111,6 +121,7 @@ DATABASE_URL=postgresql://novel_ai_user:novel_ai_password@localhost:5432/novel_a
 ZHIPUAI_API_KEY=your-zhipuai-api-key  # Get from https://open.bigmodel.cn/usercenter/apikeys
 OPENAI_API_BASE=https://open.bigmodel.cn/api/paas/v4/
 AI_MODEL=glm-4-flash  # Options: glm-4-flash, glm-4, glm-4-plus
+ENTITY_SIMILARITY_THRESHOLD=0.7  # 名称相似度阈值（0-1），用于实体提取去重
 SECRET_KEY=your-secret-key-change-in-production
 ```
 
@@ -257,6 +268,10 @@ interface ChapterState {
 - `POST /api/chapters/{id}/select-version` - Select and apply a generated version
 - `GET /api/chapters/{id}/drafts` - List all generated versions for a chapter
 - `GET /api/chapters/analyze-context` - Get AI-recommended context entities
+- `POST /api/chapters/{id}/extract-entities` - **从章节内容中提取人物和世界观设定**
+  - 使用 AI 分析章节内容，自动识别并创建人物和世界观设定
+  - 返回统计信息：添加和跳过的实体数量
+  - 支持名称相似度匹配避免重复（阈值 0.7，可配置）
 
 ### Characters
 - `GET /api/characters/list/{project_id}` - List characters
