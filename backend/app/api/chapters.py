@@ -818,3 +818,72 @@ def generate_text(
         raise BusinessException(f"生成失败: {str(e)}")
 
 
+@router.post("/{chapter_id}/extract-entities", summary="从章节提取实体")
+def extract_entities_from_chapter(
+    chapter_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    从章节内容中提取人物和世界观设定
+
+    返回统计信息：
+    - characters: {"added": 数量, "skipped": 数量}
+    - world_settings: {"added": 数量, "skipped": 数量}
+    """
+    # 获取章节
+    chapter = db.query(Chapter).filter(Chapter.id == chapter_id).first()
+    if not chapter:
+        raise NotFoundException("章节不存在")
+
+    # 验证项目权限
+    project = require_project(chapter.project_id, current_user, db)
+
+    # 检查章节内容
+    if not chapter.content or not chapter.content.strip():
+        raise BusinessException("章节内容为空，无法提取实体")
+
+    try:
+        # 注入 AI 服务
+        from app.services.ai_service import ai_service
+        entity_extraction_service.ai_service = ai_service
+
+        # 提取人物
+        characters_result = entity_extraction_service.extract_characters(
+            db=db,
+            project_id=project.id,
+            content=chapter.content
+        )
+
+        # 提取世界观设定
+        settings_result = entity_extraction_service.extract_world_settings(
+            db=db,
+            project_id=project.id,
+            content=chapter.content
+        )
+
+        # 构建响应
+        message_parts = []
+        if characters_result["added"] > 0:
+            message_parts.append(f"{characters_result['added']} 个人物")
+        if settings_result["added"] > 0:
+            message_parts.append(f"{settings_result['added']} 个世界观设定")
+
+        message_text = "、".join(message_parts) if message_parts else "未发现新实体"
+        if not message_text.startswith("未"):
+            message_text = f"成功添加 {message_text}"
+
+        return {
+            "code": 200,
+            "message": message_text,
+            "data": {
+                "characters": characters_result,
+                "world_settings": settings_result
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"提取实体失败: {e}")
+        raise BusinessException(f"提取实体失败: {str(e)}")
+
+
