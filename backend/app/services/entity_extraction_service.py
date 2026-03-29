@@ -463,3 +463,7 @@ class EntityExtractionService:
 
         logger.info(f"世界观设定提取完成: 添加 {added_count} 个，跳过 {skipped_count} 个")
         return {"added": added_count, "skipped": skipped_count}
+
+
+# 创建全局服务实例
+entity_extraction_service = EntityExtractionService(ai_service=None)

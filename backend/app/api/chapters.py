@@ -20,6 +20,7 @@ from app.schemas.content_generation import (
     GeneratedVersion, ContextUsed, SelectVersionRequest
 )
 from app.services.ai_service import ai_service
+from app.services.entity_extraction_service import entity_extraction_service
 from app.core.websocket_manager import send_websocket_message
 
 router = APIRouter(prefix="/chapters", tags=["章节管理"])
