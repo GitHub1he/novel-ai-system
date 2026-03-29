@@ -208,4 +208,14 @@ export const versionApi = {
   }
 }
 
+/**
+ * 从章节提取实体
+ * @param chapterId 章节 ID
+ * @returns 提取结果
+ */
+export const extractEntitiesFromChapter = async (chapterId: number) => {
+  const response = await api.post(`/chapters/${chapterId}/extract-entities`)
+  return response.data
+}
+
 export default api
