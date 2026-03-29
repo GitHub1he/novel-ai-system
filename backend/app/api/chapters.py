@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import asyncio
 import uuid
 from app.core.database import get_db
@@ -19,6 +19,7 @@ from app.schemas.content_generation import (
     ChapterGenerateRequest, ChapterGenerateResponse,
     GeneratedVersion, ContextUsed, SelectVersionRequest
 )
+from app.schemas.entity_extraction import CreateEntitiesRequest
 from app.services.ai_service import ai_service
 from app.services.entity_extraction_service import entity_extraction_service
 from app.core.websocket_manager import send_websocket_message
@@ -909,8 +910,7 @@ def detect_entities_from_chapter(
 @router.post("/{chapter_id}/create-entities", summary="批量创建实体")
 def create_entities(
     chapter_id: int,
-    characters: List[Dict[str, Any]] = Body([]),
-    world_settings: List[Dict[str, Any]] = Body([]),
+    request_data: CreateEntitiesRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -930,36 +930,32 @@ def create_entities(
     project = require_project(chapter.project_id, current_user, db)
 
     try:
-        from app.schemas.entity_extraction import ExtractedCharacter, ExtractedWorldSetting
-
         # 创建人物
         added_characters = 0
-        for char_data in characters:
+        for char_data in request_data.characters:
             try:
-                validated_char = ExtractedCharacter(**char_data)
                 new_char = Character(
                     project_id=project.id,
-                    **validated_char.model_dump(exclude_unset=True)
+                    **char_data.model_dump(exclude_unset=True)
                 )
                 db.add(new_char)
                 added_characters += 1
-                logger.info(f"创建人物: {validated_char.name}")
+                logger.info(f"创建人物: {char_data.name}")
             except Exception as e:
                 logger.error(f"创建人物失败: {e}, 数据: {char_data}")
                 continue
 
         # 创建世界观设定
         added_settings = 0
-        for setting_data in world_settings:
+        for setting_data in request_data.world_settings:
             try:
-                validated_setting = ExtractedWorldSetting(**setting_data)
                 new_setting = WorldSetting(
                     project_id=project.id,
-                    **validated_setting.model_dump(exclude_unset=True)
+                    **setting_data.model_dump(exclude_unset=True)
                 )
                 db.add(new_setting)
                 added_settings += 1
-                logger.info(f"创建世界观设定: {validated_setting.name}")
+                logger.info(f"创建世界观设定: {setting_data.name}")
             except Exception as e:
                 logger.error(f"创建世界观设定失败: {e}, 数据: {setting_data}")
                 continue

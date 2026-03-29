@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from app.models.character import CharacterRole
 from app.models.world_setting import SettingType
 
@@ -32,3 +32,9 @@ class EntityExtractionResponse(BaseModel):
     """实体提取响应"""
     characters: Dict[str, int]  # {"added": 5, "skipped": 2}
     world_settings: Dict[str, int]
+
+
+class CreateEntitiesRequest(BaseModel):
+    """批量创建实体请求"""
+    characters: List[ExtractedCharacter] = []
+    world_settings: List[ExtractedWorldSetting] = []
