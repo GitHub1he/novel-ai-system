@@ -130,8 +130,12 @@ class EntityExtractionService:
         Returns:
             检测到的人物列表
         """
+        logger.info(f"开始检测人物，AI 服务状态: {self.ai_service is not None}")
+        if self.ai_service:
+            logger.info(f"AI 客户端状态: {self.ai_service.client is not None}")
+
         if not self.ai_service or not self.ai_service.client:
-            logger.error("AI 服务未初始化")
+            logger.error("AI 服务未初始化，无法检测人物")
             return []
 
         # 构建已有人物名称列表
