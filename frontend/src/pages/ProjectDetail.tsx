@@ -93,8 +93,8 @@ const ProjectDetail = () => {
     characters: [],
     world_settings: []
   })
-  const [selectedCharacters, setSelectedCharacters] = useState<any[]>([])
-  const [selectedSettings, setSelectedSettings] = useState<any[]>([])
+  const [editingCharacters, setEditingCharacters] = useState<any[]>([])
+  const [editingSettings, setEditingSettings] = useState<any[]>([])
   const [entityExtractionChapterId, setEntityExtractionChapterId] = useState<number | null>(null)
 
   useEffect(() => {
@@ -640,16 +640,20 @@ const ProjectDetail = () => {
       setDetectedEntities(result.data)
       setEntityExtractionChapterId(chapterId)
 
-      // 默认选中所有非重复的实体
-      setSelectedCharacters(
-        result.data.characters
-          .filter((c: any) => !c.is_duplicate)
-          .map((c: any) => ({ ...c, checked: true }))
+      // 默认选中所有非重复的实体，并设置为可编辑
+      setEditingCharacters(
+        result.data.characters.map((c: any) => ({
+          ...c,
+          checked: !c.is_duplicate,
+          is_duplicate: c.is_duplicate
+        }))
       )
-      setSelectedSettings(
-        result.data.world_settings
-          .filter((s: any) => !s.is_duplicate)
-          .map((s: any) => ({ ...s, checked: true }))
+      setEditingSettings(
+        result.data.world_settings.map((s: any) => ({
+          ...s,
+          checked: !s.is_duplicate,
+          is_duplicate: s.is_duplicate
+        }))
       )
 
       // 显示预览弹窗
@@ -667,8 +671,14 @@ const ProjectDetail = () => {
     if (!entityExtractionChapterId) return
 
     try {
-      const charactersToCreate = selectedCharacters.filter(c => c.checked)
-      const settingsToCreate = selectedSettings.filter(s => s.checked)
+      // 过滤出选中的实体，并移除不需要的字段
+      const charactersToCreate = editingCharacters
+        .filter(c => c.checked)
+        .map(({ checked, is_duplicate, ...rest }) => rest)
+
+      const settingsToCreate = editingSettings
+        .filter(s => s.checked)
+        .map(({ checked, is_duplicate, ...rest }) => rest)
 
       if (charactersToCreate.length === 0 && settingsToCreate.length === 0) {
         message.info('请选择要添加的实体')
@@ -692,6 +702,20 @@ const ProjectDetail = () => {
       console.error('创建实体失败:', error)
       message.error(error.response?.data?.message || '创建实体失败，请稍后重试')
     }
+  }
+
+  // 更新人物字段
+  const updateCharacter = (index: number, field: string, value: any) => {
+    const newCharacters = [...editingCharacters]
+    newCharacters[index] = { ...newCharacters[index], [field]: value }
+    setEditingCharacters(newCharacters)
+  }
+
+  // 更新世界观设定字段
+  const updateSetting = (index: number, field: string, value: any) => {
+    const newSettings = [...editingSettings]
+    newSettings[index] = { ...newSettings[index], [field]: value }
+    setEditingSettings(newSettings)
   }
 
   if (!project) {
@@ -1345,11 +1369,11 @@ const ProjectDetail = () => {
 
       {/* 实体预览和确认弹窗 */}
       <Modal
-        title="提取到的实体"
+        title="提取到的实体 - 可编辑"
         open={entityPreviewVisible}
         onOk={handleConfirmCreateEntities}
         onCancel={() => setEntityPreviewVisible(false)}
-        width={800}
+        width={900}
         okText="确认添加"
         cancelText="取消"
       >
@@ -1358,59 +1382,100 @@ const ProjectDetail = () => {
           items={[
             {
               key: 'characters',
-              label: `人物 (${selectedCharacters.length})`,
+              label: `人物 (${editingCharacters.filter(c => c.checked).length})`,
               children: (
                 <div>
-                  {detectedEntities.characters.length === 0 ? (
+                  {editingCharacters.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
                       未检测到人物
                     </div>
                   ) : (
-                    <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                      {detectedEntities.characters.map((char: any, index: number) => {
-                        const isChecked = selectedCharacters.some(c => c.name === char.name && c.checked)
-                        return (
-                          <Card
-                            key={index}
-                            size="small"
-                            style={{ marginBottom: '10px' }}
-                            hoverable
-                          >
-                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                              <Checkbox
-                                checked={isChecked}
-                                disabled={char.is_duplicate}
-                                onChange={(e) => {
-                                  const newSelected = [...selectedCharacters]
-                                  const existingIndex = newSelected.findIndex(c => c.name === char.name)
-                                  if (existingIndex >= 0) {
-                                    newSelected[existingIndex].checked = e.target.checked
-                                  } else {
-                                    newSelected.push({ ...char, checked: e.target.checked })
-                                  }
-                                  setSelectedCharacters(newSelected)
-                                }}
-                              />
-                              <div style={{ flex: 1 }}>
-                                <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
-                                  {char.name || '(未命名)'}
+                    <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
+                      {editingCharacters.map((char: any, index: number) => (
+                        <Card
+                          key={index}
+                          size="small"
+                          style={{ marginBottom: '12px' }}
+                          hoverable
+                        >
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                            <Checkbox
+                              checked={char.checked}
+                              disabled={char.is_duplicate}
+                              onChange={(e) => {
+                                const newCharacters = [...editingCharacters]
+                                newCharacters[index].checked = e.target.checked
+                                setEditingCharacters(newCharacters)
+                              }}
+                              style={{ marginTop: '4px' }}
+                            />
+                            <div style={{ flex: 1 }}>
+                              <div style={{ marginBottom: '10px' }}>
+                                <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
                                   {char.is_duplicate && (
-                                    <Tag color="orange" style={{ marginLeft: '8px' }}>
+                                    <Tag color="orange" style={{ marginRight: '8px' }}>
                                       已存在
                                     </Tag>
                                   )}
                                 </div>
-                                <div style={{ fontSize: '12px', color: '#666' }}>
-                                  {char.identity && <div>身份: {char.identity}</div>}
-                                  {char.age && <div>年龄: {char.age}</div>}
-                                  {char.gender && <div>性别: {char.gender}</div>}
-                                  {char.role && <div>角色: {char.role}</div>}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                  <div>
+                                    <label style={{ fontSize: '12px', color: '#666' }}>姓名 *</label>
+                                    <Input
+                                      value={char.name || ''}
+                                      onChange={(e) => updateCharacter(index, 'name', e.target.value)}
+                                      placeholder="姓名"
+                                      size="small"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label style={{ fontSize: '12px', color: '#666' }}>年龄</label>
+                                    <Input
+                                      value={char.age || ''}
+                                      onChange={(e) => updateCharacter(index, 'age', e.target.value ? parseInt(e.target.value) : null)}
+                                      placeholder="年龄"
+                                      size="small"
+                                      type="number"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label style={{ fontSize: '12px', color: '#666' }}>性别</label>
+                                    <Input
+                                      value={char.gender || ''}
+                                      onChange={(e) => updateCharacter(index, 'gender', e.target.value)}
+                                      placeholder="性别"
+                                      size="small"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label style={{ fontSize: '12px', color: '#666' }}>身份</label>
+                                    <Input
+                                      value={char.identity || ''}
+                                      onChange={(e) => updateCharacter(index, 'identity', e.target.value)}
+                                      placeholder="身份/职业"
+                                      size="small"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label style={{ fontSize: '12px', color: '#666' }}>角色类型</label>
+                                    <Select
+                                      value={char.role || 'supporting'}
+                                      onChange={(value) => updateCharacter(index, 'role', value)}
+                                      size="small"
+                                      style={{ width: '100%' }}
+                                    >
+                                      <Select.Option value="protagonist">主角</Select.Option>
+                                      <Select.Option value="antagonist">反派</Select.Option>
+                                      <Select.Option value="supporting">配角</Select.Option>
+                                      <Select.Option value="minor">次要角色</Select.Option>
+                                    </Select>
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </Card>
-                        )
-                      })}
+                          </div>
+                        </Card>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -1418,59 +1483,90 @@ const ProjectDetail = () => {
             },
             {
               key: 'world_settings',
-              label: `世界观设定 (${selectedSettings.length})`,
+              label: `世界观设定 (${editingSettings.filter(s => s.checked).length})`,
               children: (
                 <div>
-                  {detectedEntities.world_settings.length === 0 ? (
+                  {editingSettings.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
                       未检测到世界观设定
                     </div>
                   ) : (
-                    <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                      {detectedEntities.world_settings.map((setting: any, index: number) => {
-                        const isChecked = selectedSettings.some(s => s.name === setting.name && s.checked)
-                        return (
-                          <Card
-                            key={index}
-                            size="small"
-                            style={{ marginBottom: '10px' }}
-                            hoverable
-                          >
-                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                              <Checkbox
-                                checked={isChecked}
-                                disabled={setting.is_duplicate}
-                                onChange={(e) => {
-                                  const newSelected = [...selectedSettings]
-                                  const existingIndex = newSelected.findIndex(s => s.name === setting.name)
-                                  if (existingIndex >= 0) {
-                                    newSelected[existingIndex].checked = e.target.checked
-                                  } else {
-                                    newSelected.push({ ...setting, checked: e.target.checked })
-                                  }
-                                  setSelectedSettings(newSelected)
-                                }}
-                              />
-                              <div style={{ flex: 1 }}>
-                                <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
-                                  {setting.name || '(未命名)'}
+                    <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
+                      {editingSettings.map((setting: any, index: number) => (
+                        <Card
+                          key={index}
+                          size="small"
+                          style={{ marginBottom: '12px' }}
+                          hoverable
+                        >
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                            <Checkbox
+                              checked={setting.checked}
+                              disabled={setting.is_duplicate}
+                              onChange={(e) => {
+                                const newSettings = [...editingSettings]
+                                newSettings[index].checked = e.target.checked
+                                setEditingSettings(newSettings)
+                              }}
+                              style={{ marginTop: '4px' }}
+                            />
+                            <div style={{ flex: 1 }}>
+                              <div style={{ marginBottom: '10px' }}>
+                                <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
                                   {setting.is_duplicate && (
-                                    <Tag color="orange" style={{ marginLeft: '8px' }}>
+                                    <Tag color="orange" style={{ marginRight: '8px' }}>
                                       已存在
                                     </Tag>
                                   )}
-                                  <Tag color="blue" style={{ marginLeft: '8px' }}>
+                                  <Tag color="blue">
                                     {setting.setting_type}
                                   </Tag>
                                 </div>
-                                <div style={{ fontSize: '12px', color: '#666' }}>
-                                  {setting.description && <div>{setting.description}</div>}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                  <div style={{ gridColumn: '1 / -1' }}>
+                                    <label style={{ fontSize: '12px', color: '#666' }}>名称 *</label>
+                                    <Input
+                                      value={setting.name || ''}
+                                      onChange={(e) => updateSetting(index, 'name', e.target.value)}
+                                      placeholder="名称"
+                                      size="small"
+                                    />
+                                  </div>
+                                  <div style={{ gridColumn: '1 / -1' }}>
+                                    <label style={{ fontSize: '12px', color: '#666' }}>类型</label>
+                                    <Select
+                                      value={setting.setting_type}
+                                      onChange={(value) => updateSetting(index, 'setting_type', value)}
+                                      size="small"
+                                      style={{ width: '100%' }}
+                                    >
+                                      <Select.Option value="era">时代背景</Select.Option>
+                                      <Select.Option value="region">地域/地点</Select.Option>
+                                      <Select.Option value="rule">规则</Select.Option>
+                                      <Select.Option value="culture">文化习俗</Select.Option>
+                                      <Select.Option value="power">权力结构</Select.Option>
+                                      <Select.Option value="location">具体地点</Select.Option>
+                                      <Select.Option value="faction">势力/组织</Select.Option>
+                                      <Select.Option value="item">重要物品</Select.Option>
+                                      <Select.Option value="event">历史事件</Select.Option>
+                                    </Select>
+                                  </div>
+                                  <div style={{ gridColumn: '1 / -1' }}>
+                                    <label style={{ fontSize: '12px', color: '#666' }}>描述</label>
+                                    <TextArea
+                                      value={setting.description || ''}
+                                      onChange={(e) => updateSetting(index, 'description', e.target.value)}
+                                      placeholder="详细描述"
+                                      size="small"
+                                      rows={2}
+                                    />
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </Card>
-                        )
-                      })}
+                          </div>
+                        </Card>
+                      ))}
                     </div>
                   )}
                 </div>
