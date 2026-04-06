@@ -66,12 +66,15 @@ const WorldSettingManagement = ({ projectId }: WorldSettingManagementProps) => {
     setEditingSetting(setting)
 
     // 转换 related_entities 从 JSON 字符串/对象到数组
+    // 转换 attributes 从 JSON 字符串到对象
     const formValues = {
       ...setting,
       related_entities: Array.isArray(setting.related_entities)
         ? setting.related_entities
-        : []
-      // attributes 直接传入对象，由 AttributesEditor 组件处理
+        : [],
+      attributes: typeof setting.attributes === 'string'
+        ? (JSON.parse(setting.attributes || '{}'))
+        : (setting.attributes || {})
     }
 
     form.setFieldsValue(formValues)

@@ -24,7 +24,7 @@
 
 ## 快速开始
 
-📚 **详细的快速启动指南请查看 [QUICKSTART.md](./QUICKSTART.md)**
+📚 **详细的快速启动指南请查看 [QUICKSTART.md](docs/QUICKSTART.md)**
 
 ### 前置要求
 
@@ -60,8 +60,8 @@ npm run dev
 
 ### 详细文档
 
-- **[快速启动指南](./QUICKSTART.md)** - 完整的项目启动步骤
-- **[项目结构文档](./PROJECT_STRUCTURE.md)** - 架构设计、技术栈、代码组织
+- **[快速启动指南](docs/QUICKSTART.md)** - 完整的项目启动步骤
+- **[项目结构文档](docs/PROJECT_STRUCTURE.md)** - 架构设计、技术栈、代码组织
 - **[后端文档](./backend/README.md)** - 后端技术栈、API接口、开发指南
 - **[前端文档](./frontend/README.md)** - 前端技术栈、组件说明、开发指南
 
@@ -207,4 +207,4 @@ MIT License
 
 ---
 
-> 本项目基于PRD文档开发，详见 [小说生成与管理系统 PRD](./小说生成与管理系统 PRD（产品需求文档）.md)
+> 本项目基于PRD文档开发，详见 [小说生成与管理系统 PRD](docs/小说生成与管理系统 PRD（产品需求文档）.md)

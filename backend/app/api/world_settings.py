@@ -43,22 +43,13 @@ def create_world_setting(
 
         logger.info(f"创建世界观设定成功: {db_setting.name} (ID: {db_setting.id})")
 
+        # 使用 Pydantic 序列化响应
+        response_data = WorldSettingResponse.model_validate(db_setting)
+
         return {
             "code": 200,
             "message": "创建成功",
-            "data": {
-                "id": db_setting.id,
-                "project_id": db_setting.project_id,
-                "name": db_setting.name,
-                "setting_type": db_setting.setting_type.value if hasattr(db_setting.setting_type, 'value') else str(db_setting.setting_type),
-                "description": db_setting.description,
-                "attributes": db_setting.attributes if db_setting.attributes else None,
-                "related_entities": db_setting.related_entities if db_setting.related_entities else None,
-                "is_core_rule": db_setting.is_core_rule,
-                "image": db_setting.image,
-                "created_at": db_setting.created_at.isoformat() if db_setting.created_at else None,
-                "updated_at": db_setting.updated_at.isoformat() if db_setting.updated_at else None,
-            }
+            "data": response_data.model_dump()
         }
     except ValueError as e:
         raise BusinessException(str(e))
@@ -88,22 +79,8 @@ def get_world_settings(
 
         logger.info(f"获取世界观设定列表成功: project_id={project_id}, count={len(settings)}")
 
-        setting_list = []
-        for s in settings:
-            setting_dict = {
-                "id": s.id,
-                "project_id": s.project_id,
-                "name": s.name,
-                "setting_type": s.setting_type.value if hasattr(s.setting_type, 'value') else str(s.setting_type),
-                "description": s.description,
-                "attributes": s.attributes if s.attributes else None,
-                "related_entities": s.related_entities if s.related_entities else None,
-                "is_core_rule": s.is_core_rule,
-                "image": s.image,
-                "created_at": s.created_at.isoformat() if s.created_at else None,
-                "updated_at": s.updated_at.isoformat() if s.updated_at else None,
-            }
-            setting_list.append(setting_dict)
+        # 使用 Pydantic 序列化响应
+        setting_list = [WorldSettingResponse.model_validate(s).model_dump() for s in settings]
 
         return {
             "code": 200,
@@ -129,22 +106,13 @@ def get_world_setting_detail(
     try:
         logger.info(f"获取世界观设定详情成功: {setting.name} (ID: {setting.id})")
 
+        # 使用 Pydantic 序列化响应
+        response_data = WorldSettingResponse.model_validate(setting)
+
         return {
             "code": 200,
             "message": "获取成功",
-            "data": {
-                "id": setting.id,
-                "project_id": setting.project_id,
-                "name": setting.name,
-                "setting_type": setting.setting_type.value if hasattr(setting.setting_type, 'value') else str(setting.setting_type),
-                "description": setting.description,
-                "attributes": setting.attributes if setting.attributes else None,
-                "related_entities": setting.related_entities if setting.related_entities else None,
-                "is_core_rule": setting.is_core_rule,
-                "image": setting.image,
-                "created_at": setting.created_at.isoformat() if setting.created_at else None,
-                "updated_at": setting.updated_at.isoformat() if setting.updated_at else None,
-            }
+            "data": response_data.model_dump()
         }
     except NotFoundException:
         raise
@@ -179,24 +147,15 @@ def update_world_setting(
         db.commit()
         db.refresh(setting)
 
-        logger.info(f"更新世界观设定成功: {setting.name} (ID: {setting_id})")
+        logger.info(f"更新世界观设定成功: {setting.name} (ID: {setting.id})")
+
+        # 使用 Pydantic 序列化响应
+        response_data = WorldSettingResponse.model_validate(setting)
 
         return {
             "code": 200,
             "message": "更新成功",
-            "data": {
-                "id": setting.id,
-                "project_id": setting.project_id,
-                "name": setting.name,
-                "setting_type": setting.setting_type.value if hasattr(setting.setting_type, 'value') else str(setting.setting_type),
-                "description": setting.description,
-                "attributes": setting.attributes if setting.attributes else None,
-                "related_entities": setting.related_entities if setting.related_entities else None,
-                "is_core_rule": setting.is_core_rule,
-                "image": setting.image,
-                "created_at": setting.created_at.isoformat() if setting.created_at else None,
-                "updated_at": setting.updated_at.isoformat() if setting.updated_at else None,
-            }
+            "data": response_data.model_dump()
         }
     except NotFoundException:
         raise

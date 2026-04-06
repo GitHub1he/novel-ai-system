@@ -230,4 +230,4 @@ docker-compose down -v
 ## 📚 更多文档
 
 - **[后端详细文档](./backend/README.md)** - 后端技术栈、API接口、开发指南
-- **[前端详细文档](./frontend/README.md)** - 前端技术栈、组件说明、开发指南
+- **[前端详细文档](../frontend/README.md)** - 前端技术栈、组件说明、开发指南
