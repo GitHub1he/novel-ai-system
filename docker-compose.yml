@@ -3,33 +3,68 @@ version: '3.8'
 services:
   # PostgreSQL数据库
   postgres:
-    image: postgres:15
+    image: postgres:16
     container_name: novel_ai_db
     environment:
-      POSTGRES_USER: novel_ai_user
-      POSTGRES_PASSWORD: novel_ai_password
-      POSTGRES_DB: novel_ai_db
+      POSTGRES_USER: ${POSTGRES_USER:-novel_ai_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-novel_ai_password}
+      POSTGRES_DB: ${POSTGRES_DB:-novel_ai_db}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - novel_ai_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-novel_ai_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # 后端服务（可选：也可本地运行）
-  # backend:
-  #   build:
-  #     context: ./backend
-  #     dockerfile: Dockerfile
-  #   container_name: novel_ai_backend
-  #   environment:
-  #     DATABASE_URL: postgresql://novel_ai_user:novel_ai_password@postgres:5432/novel_ai_db
-  #   ports:
-  #     - "8000:8000"
-  #   depends_on:
-  #     - postgres
-  #   networks:
-  #     - novel_ai_network
+  # 后端服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: novel_ai_backend
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-novel_ai_user}:${POSTGRES_PASSWORD:-novel_ai_password}@postgres:5432/${POSTGRES_DB:-novel_ai_db}
+      ZHIPUAI_API_KEY: ${ZHIPUAI_API_KEY}
+      OPENAI_API_BASE: ${OPENAI_API_BASE:-https://open.bigmodel.cn/api/paas/v4/}
+      AI_MODEL: ${AI_MODEL:-glm-4-flash}
+      ENTITY_SIMILARITY_THRESHOLD: ${ENTITY_SIMILARITY_THRESHOLD:-0.7}
+      SECRET_KEY: ${SECRET_KEY}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost,http://localhost:3000,http://localhost:5173}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - novel_ai_network
+    restart: unless-stopped
+    volumes:
+      - ./backend/logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: novel_ai_frontend
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      - backend
+    networks:
+      - novel_ai_network
+    restart: unless-stopped
 
 volumes:
   postgres_data:

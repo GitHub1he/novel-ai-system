@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # PostgreSQL数据库
+  postgres:
+    image: postgres:16
+    container_name: novel_ai_postgres
+    env_file:
+      - ./appfile/config/backend.env
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./appfile/postgres/data:/var/lib/postgresql/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    networks:
+      - my-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U novel_ai_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 后端服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: novel_ai_backend
+    env_file:
+      - ./appfile/config/backend.env
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - my-network
+    restart: unless-stopped
+    volumes:
+      - ./appfile/log/backend:/app/logs
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 前端服务 (Nginx)
+  nginx:
+    image: nginx:latest
+    container_name: novel_ai_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./appfile/config/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./appfile/frontend/dist:/usr/share/nginx/html:ro
+      - ./appfile/log/nginx:/var/log/nginx
+      - ./appfile/config/cert/totry.vip.key:/ssl/totry.vip.key:ro
+      - ./appfile/config/cert/totry.vip.pem:/ssl/totry.vip.pem:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    depends_on:
+      - backend
+    networks:
+      - my-network
+    restart: unless-stopped
+
+networks:
+  my-network:
+    external: true
+    name: app_my-network

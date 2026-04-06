@@ -34,12 +34,13 @@ api.interceptors.response.use(
       // 清除token
       localStorage.removeItem('token')
       // 显示友好提示
-      const message = require('antd').message
-      message.warning('登录已过期，请重新登录')
-      // 延迟跳转，让用户看到提示
+      // 注意：这里不能直接使用 message，因为会形成循环依赖
+      // 改为使用 console 或 window.location 直接跳转
+      console.warn('登录已过期，请重新登录')
+      // 延迟跳转
       setTimeout(() => {
         window.location.href = '/login'
-      }, 1000)
+      }, 500)
     }
     return Promise.reject(error)
   }

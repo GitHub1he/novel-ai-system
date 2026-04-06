@@ -1,8 +1,20 @@
+docker compose -f docker-compose.prod.yml stop backend
+docker compose -f docker-compose.prod.yml rm -f backend
+docker compose -f docker-compose.prod.yml build --no-cache backend
+docker compose -f docker-compose.prod.yml up -d backend
+docker logs novel_ai_backend
+邮箱: test@example.com
+  用户名: testuser
+  密码: password123
+  用户ID: 1
 - 支持导入已写小说，并解析对应架构：人物、世界观
 - 支持基于剧情和世界观、人物续写，全ai生成
 - 支持扩写、改写
-- ai生成要基于前面剧情的总结和世界观和角色生成，现在的上下文分析不好使，ai生成的内容也只修改选中文本，同时右侧的快捷指令现在也不能用，前端要支持选中文本后，可以只修改选中文本，如果没选中，则让用户选择是全部覆盖或者插入到光标处或者插入到指定位置，这块逻辑怎么整体验更好一些
-- 保存内容后，要将可以添加到世界观和人物中的内容让用户确认是否添加
+- 续写 隔两章上下文能力差
+- ai生成要基于前面剧情的总结和世界观和角色生成
+~~- 保存内容后，要将可以添加到世界观和人物中的内容让用户确认是否添加~~
+- 提取实体只提取具体出现的人物，游客就不用提取了，世界观也是只提取重要的
+- 在高级生成创建的 时候，添加解析新用户或世界观功能，文本框右上角或者右下角，可以检测当前文本框中的内容，有没有新加的角色或世界观，有的话弹框让用户编辑并添加，不影响高级生成的功能
 # 小说生成与管理系统 PRD（产品需求文档）
 
 # 一、文档基础信息

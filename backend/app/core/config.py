@@ -1,5 +1,7 @@
 from pydantic_settings import BaseSettings
-from typing import Optional
+from pydantic import field_validator
+from typing import Optional, List
+import json
 
 
 class Settings(BaseSettings):
@@ -29,7 +31,7 @@ class Settings(BaseSettings):
     ENTITY_SIMILARITY_THRESHOLD: float = 0.7  # 名称相似度阈值（0-1）
 
     # CORS配置
-    BACKEND_CORS_ORIGINS: list = [
+    BACKEND_CORS_ORIGINS: List[str] = [
         "http://localhost:3000",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
@@ -37,8 +39,24 @@ class Settings(BaseSettings):
         "ws://localhost:5173",
         "ws://127.0.0.1:5173",
         "http://localhost:8000",
-        "ws://localhost:8000"
+        "ws://localhost:8000",
+        "https://totry.vip",
+        "https://www.totry.vip"
     ]
+
+    @field_validator('BACKEND_CORS_ORIGINS', mode='before')
+    @classmethod
+    def parse_cors_origins(cls, v):
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            # 尝试解析 JSON 数组
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                # 如果不是 JSON，按逗号分隔
+                return [origin.strip() for origin in v.split(',')]
+        return v
 
     class Config:
         env_file = ".env"

@@ -109,13 +109,13 @@ const ImprovedContextAnalysis: React.FC<ImprovedContextAnalysisProps> = ({
 
       // 并行加载人物、世界观、情节节点
       const [charactersRes, worldSettingsRes, plotNodesRes] = await Promise.all([
-        axios.get(`http://localhost:8000/api/characters/list/${projectId}`, {
+        axios.get(`/api/characters/list/${projectId}`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        axios.get(`http://localhost:8000/api/world-settings/list/${projectId}`, {
+        axios.get(`/api/world-settings/list/${projectId}`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        axios.get(`http://localhost:8000/api/plot-nodes/list/${projectId}`, {
+        axios.get(`/api/plot-nodes/list/${projectId}`, {
           headers: { Authorization: `Bearer ${token}` }
         })
       ])
@@ -173,7 +173,7 @@ const ImprovedContextAnalysis: React.FC<ImprovedContextAnalysisProps> = ({
       const token = localStorage.getItem('token')
 
       // 获取前面的章节
-      const chaptersRes = await axios.get(`http://localhost:8000/api/chapters/list/${projectId}`, {
+      const chaptersRes = await axios.get(`/api/chapters/list/${projectId}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
 

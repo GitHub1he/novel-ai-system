@@ -214,7 +214,7 @@ const ProjectDetail = () => {
 
   const fetchCharacters = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/characters/list/${id}`, {
+      const response = await fetch(`/api/characters/list/${id}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -230,7 +230,7 @@ const ProjectDetail = () => {
 
   const fetchWorldSettings = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/world-settings/list/${id}`, {
+      const response = await fetch(`/api/world-settings/list/${id}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -262,7 +262,7 @@ const ProjectDetail = () => {
     startGeneratingAnimation()
 
     try {
-      const response = await fetch('http://localhost:8000/api/chapters/generate', {
+      const response = await fetch('/api/chapters/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -305,7 +305,7 @@ const ProjectDetail = () => {
         return
       }
 
-      const response = await fetch(`http://localhost:8000/api/chapters/${chapterId}/select-version`, {
+      const response = await fetch(`/api/chapters/${chapterId}/select-version`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -381,7 +381,7 @@ const ProjectDetail = () => {
       }
 
       // 调用AI文本生成API
-      const response = await fetch('http://localhost:8000/api/chapters/generate-text', {
+      const response = await fetch('/api/chapters/generate-text', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -37,7 +37,17 @@
       "Bash(powershell:*)",
       "Bash(npm install:*)",
       "Bash(ping:*)",
-      "Bash(tasklist:*)"
+      "Bash(tasklist:*)",
+      "Bash(pytest:*)",
+      "Bash(set:*)",
+      "Bash(PYTHONPATH=. pytest:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(npm run build:*)",
+      "Bash(copy:*)",
+      "Bash(git checkout:*)",
+      "Bash(mkdir -p appfile/frontend/dist)",
+      "Bash(cp -r frontend/dist/* appfile/frontend/dist/)",
+      "Bash(grep -E \"\\\\.md$|\\\\.yml$|\\\\.yaml$|\\\\.sh$\")"
     ]
   }
 }
