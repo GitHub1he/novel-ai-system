@@ -44,11 +44,25 @@ const ProjectStyleSettings: React.FC<ProjectStyleSettingsProps> = ({
 
   useEffect(() => {
     if (visible && project) {
+      // 处理 sensory_focus：如果是字符串则解析，如果是数组则直接使用
+      let sensoryFocusValue = ['visual', 'psychological']
+      if (project.sensory_focus) {
+        if (typeof project.sensory_focus === 'string') {
+          try {
+            sensoryFocusValue = JSON.parse(project.sensory_focus)
+          } catch {
+            sensoryFocusValue = ['visual', 'psychological']
+          }
+        } else if (Array.isArray(project.sensory_focus)) {
+          sensoryFocusValue = project.sensory_focus
+        }
+      }
+
       form.setFieldsValue({
         preset_style: project.style || '',
         custom_keywords: project.style_keywords || '',
         language_style: project.language_style || 'concise',
-        sensory_focus: project.sensory_focus || ['visual', 'psychological'],
+        sensory_focus: sensoryFocusValue,
         style_intensity: project.style_intensity || 70,
       })
     }

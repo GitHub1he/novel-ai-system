@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator, ConfigDict
+from pydantic import BaseModel, field_validator, ConfigDict, field_serializer
 from datetime import datetime
 from typing import Optional, List, Union
 from app.models.project import ProjectStatus
@@ -65,10 +65,29 @@ class ProjectUpdate(BaseModel):
     style: Optional[str] = None
     style_keywords: Optional[str] = None
     language_style: Optional[str] = None
-    sensory_focus: Optional[str] = None
+    sensory_focus: Optional[Union[str, List[str]]] = None
     style_intensity: Optional[int] = None
     target_words_per_chapter: Optional[int] = None
     background_template: Optional[str] = None
+
+    @field_validator('sensory_focus', mode='before')
+    @classmethod
+    def validate_sensory_focus(cls, v):
+        """将 sensory_focus 数组转换为 JSON 字符串"""
+        if v is None:
+            return None
+        if isinstance(v, list):
+            return json.dumps(v, ensure_ascii=False)
+        if isinstance(v, str):
+            # 如果已经是字符串，尝试解析并重新序列化以确保格式正确
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return json.dumps(parsed, ensure_ascii=False)
+            except:
+                pass
+            return v
+        return v
 
 
 class ProjectResponse(BaseModel):
@@ -84,6 +103,10 @@ class ProjectResponse(BaseModel):
     status: str  # 改为字符串，避免枚举验证问题
     default_pov: Optional[str] = None
     style: Optional[str] = None
+    style_keywords: Optional[str] = None
+    language_style: Optional[str] = None
+    sensory_focus: Optional[Union[str, List[str]]] = None
+    style_intensity: Optional[int] = None
     target_words_per_chapter: int
     tags: Optional[str] = None
     background_template: Optional[str] = None
@@ -91,7 +114,19 @@ class ProjectResponse(BaseModel):
     total_chapters: int
     completion_rate: int
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
+
+    @field_serializer('sensory_focus')
+    def serialize_sensory_focus(self, value: Optional[str]) -> Optional[List[str]]:
+        """将 sensory_focus JSON 字符串转换为数组"""
+        if value is None:
+            return None
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except:
+                return None
+        return value
 
 
 class ProjectListResponse(BaseModel):

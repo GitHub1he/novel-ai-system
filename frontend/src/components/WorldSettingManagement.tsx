@@ -66,15 +66,37 @@ const WorldSettingManagement = ({ projectId }: WorldSettingManagementProps) => {
     setEditingSetting(setting)
 
     // 转换 related_entities 从 JSON 字符串/对象到数组
+    let relatedEntitiesValue: any[] = []
+    if (setting.related_entities) {
+      if (typeof setting.related_entities === 'string') {
+        try {
+          relatedEntitiesValue = JSON.parse(setting.related_entities)
+        } catch {
+          relatedEntitiesValue = []
+        }
+      } else if (Array.isArray(setting.related_entities)) {
+        relatedEntitiesValue = setting.related_entities
+      }
+    }
+
     // 转换 attributes 从 JSON 字符串到对象
+    let attributesValue: Record<string, any> = {}
+    if (setting.attributes) {
+      if (typeof setting.attributes === 'string') {
+        try {
+          attributesValue = JSON.parse(setting.attributes)
+        } catch {
+          attributesValue = {}
+        }
+      } else if (typeof setting.attributes === 'object') {
+        attributesValue = setting.attributes
+      }
+    }
+
     const formValues = {
       ...setting,
-      related_entities: Array.isArray(setting.related_entities)
-        ? setting.related_entities
-        : [],
-      attributes: typeof setting.attributes === 'string'
-        ? (JSON.parse(setting.attributes || '{}'))
-        : (setting.attributes || {})
+      related_entities: relatedEntitiesValue,
+      attributes: attributesValue
     }
 
     form.setFieldsValue(formValues)

@@ -1186,7 +1186,7 @@ const ProjectDetail = () => {
                 style={{ padding: 0, height: 'auto', fontSize: '13px' }}
                 onClick={() => setStyleSettingsVisible(true)}
               >
-                {project.style ? '设置文风' : '点击设置'}
+                {project.style || '未设置'}
               </Button>
             </p>
             <p style={{ margin: '8px 0', fontSize: '13px', color: '#595959' }}>
@@ -1208,7 +1208,7 @@ const ProjectDetail = () => {
                 文风设置
               </div>
               <div style={{ fontSize: '12px', color: '#8c8c8c', marginTop: '4px' }}>
-                {project.style ? `当前：${project.style}` : '未设置'}
+                {project.style ? `当前：${project.style} (强度: ${project.style_intensity || 70}%)` : '未设置'}
               </div>
             </div>
           </Card>

@@ -30,30 +30,13 @@ def create_project(
 
         logger.info(f"创建项目成功: {db_project.title} (ID: {db_project.id})")
 
-        # 手动转换为字典
+        # 使用 Pydantic 序列化响应
+        response_data = ProjectResponse.model_validate(db_project)
+
         return {
             "code": 200,
             "message": "创建成功",
-            "data": {
-                "id": db_project.id,
-                "user_id": db_project.user_id,
-                "title": db_project.title,
-                "author": db_project.author,
-                "genre": db_project.genre,
-                "summary": db_project.summary,
-                "target_readers": db_project.target_readers,
-                "status": db_project.status.value if hasattr(db_project.status, 'value') else str(db_project.status),
-                "default_pov": db_project.default_pov,
-                "style": db_project.style,
-                "target_words_per_chapter": db_project.target_words_per_chapter,
-                "tags": db_project.tags,
-                "background_template": db_project.background_template,
-                "total_words": db_project.total_words,
-                "total_chapters": db_project.total_chapters,
-                "completion_rate": db_project.completion_rate,
-                "created_at": db_project.created_at.isoformat() if db_project.created_at else None,
-                "updated_at": db_project.updated_at.isoformat() if db_project.updated_at else None,
-            }
+            "data": response_data.model_dump()
         }
     except ValueError as e:
         # 验证错误（如 Pydantic validator 抛出的 ValueError）
@@ -94,30 +77,8 @@ def get_projects(
 
         logger.info(f"获取项目列表成功: user_id={current_user.id}, is_admin={current_user.is_admin}, count={len(projects)}, total={total}")
 
-        # 手动转换为字典
-        project_list = []
-        for p in projects:
-            project_dict = {
-                "id": p.id,
-                "user_id": p.user_id,
-                "title": p.title,
-                "author": p.author,
-                "genre": p.genre,
-                "summary": p.summary,
-                "target_readers": p.target_readers,
-                "status": p.status.value if hasattr(p.status, 'value') else str(p.status),
-                "default_pov": p.default_pov,
-                "style": p.style,
-                "target_words_per_chapter": p.target_words_per_chapter,
-                "tags": p.tags,
-                "background_template": p.background_template,
-                "total_words": p.total_words,
-                "total_chapters": p.total_chapters,
-                "completion_rate": p.completion_rate,
-                "created_at": p.created_at.isoformat() if p.created_at else None,
-                "updated_at": p.updated_at.isoformat() if p.updated_at else None,
-            }
-            project_list.append(project_dict)
+        # 使用 Pydantic 序列化响应
+        project_list = [ProjectResponse.model_validate(p).model_dump() for p in projects]
 
         return {
             "code": 200,
@@ -145,30 +106,13 @@ def get_project_detail(
     try:
         logger.info(f"获取项目详情成功: {project.title} (ID: {project.id})")
 
-        # 手动转换为字典
+        # 使用 Pydantic 序列化响应
+        response_data = ProjectResponse.model_validate(project)
+
         return {
             "code": 200,
             "message": "获取成功",
-            "data": {
-                "id": project.id,
-                "user_id": project.user_id,
-                "title": project.title,
-                "author": project.author,
-                "genre": project.genre,
-                "summary": project.summary,
-                "target_readers": project.target_readers,
-                "status": project.status.value if hasattr(project.status, 'value') else str(project.status),
-                "default_pov": project.default_pov,
-                "style": project.style,
-                "target_words_per_chapter": project.target_words_per_chapter,
-                "tags": project.tags,
-                "background_template": project.background_template,
-                "total_words": project.total_words,
-                "total_chapters": project.total_chapters,
-                "completion_rate": project.completion_rate,
-                "created_at": project.created_at.isoformat() if project.created_at else None,
-                "updated_at": project.updated_at.isoformat() if project.updated_at else None,
-            }
+            "data": response_data.model_dump()
         }
     except NotFoundException:
         # 重新抛出 NotFoundException
@@ -200,30 +144,13 @@ def update_project(
 
         logger.info(f"更新项目成功: {project.title} (ID: {project.id})")
 
-        # 手动转换为字典
+        # 使用 Pydantic 序列化响应
+        response_data = ProjectResponse.model_validate(project)
+
         return {
             "code": 200,
             "message": "更新成功",
-            "data": {
-                "id": project.id,
-                "user_id": project.user_id,
-                "title": project.title,
-                "author": project.author,
-                "genre": project.genre,
-                "summary": project.summary,
-                "target_readers": project.target_readers,
-                "status": project.status.value if hasattr(project.status, 'value') else str(project.status),
-                "default_pov": project.default_pov,
-                "style": project.style,
-                "target_words_per_chapter": project.target_words_per_chapter,
-                "tags": project.tags,
-                "background_template": project.background_template,
-                "total_words": project.total_words,
-                "total_chapters": project.total_chapters,
-                "completion_rate": project.completion_rate,
-                "created_at": project.created_at.isoformat() if project.created_at else None,
-                "updated_at": project.updated_at.isoformat() if project.updated_at else None,
-            }
+            "data": response_data.model_dump()
         }
     except NotFoundException:
         # 重新抛出 NotFoundException

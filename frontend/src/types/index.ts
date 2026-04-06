@@ -26,6 +26,10 @@ export interface Project {
   status: 'draft' | 'writing' | 'completed' | 'archived'
   default_pov?: string
   style?: string
+  style_keywords?: string
+  language_style?: string
+  sensory_focus?: string | string[]
+  style_intensity?: number
   target_words_per_chapter: number
   background_template?: string
   total_words: number
@@ -101,12 +105,12 @@ export interface WorldSetting {
   name: string
   setting_type: 'era' | 'region' | 'rule' | 'culture' | 'power' | 'location' | 'faction' | 'item' | 'event'
   description?: string
-  attributes?: Record<string, any>
-  related_entities?: number[]
+  attributes?: Record<string, any> | string
+  related_entities?: number[] | string
   is_core_rule: number
   image?: string
   created_at: string
-  updated_at: string
+  updated_at?: string
 }
 
 export interface PlotNode {
