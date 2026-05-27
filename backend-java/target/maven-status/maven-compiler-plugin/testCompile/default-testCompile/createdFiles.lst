@@ -1,2 +1,3 @@
 com\novel\ai\database\DatabaseConnectionTest.class
+com\novel\ai\security\jwt\JwtServiceTest.class
 com\novel\ai\security\password\PasswordEncoderTest.class

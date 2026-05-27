@@ -1,6 +1,7 @@
 com\novel\ai\config\MyBatisConfig.class
 com\novel\ai\exception\NotFoundException.class
 com\novel\ai\exception\BusinessException.class
+com\novel\ai\security\jwt\JwtService.class
 com\novel\ai\exception\handler\GlobalExceptionHandler.class
 com\novel\ai\config\AsyncConfig.class
 com\novel\ai\config\WebConfig.class
