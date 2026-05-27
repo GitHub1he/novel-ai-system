@@ -59,7 +59,7 @@ logging:
 
 # JWT配置
 jwt:
-  secret: ${JWT_SECRET:your-secret-key-change-in-production-at-least-256-bits-for-jwt-validation}
+  secret: ${JWT_SECRET:dGVzdC1zZWNyZXQta2V5LWZvci1qd3QtdmFsaWRhdGlvbi1wdXJwb3Nlcy1vbHk}
   expiration: 86400000 # 24小时
 
 # AI配置

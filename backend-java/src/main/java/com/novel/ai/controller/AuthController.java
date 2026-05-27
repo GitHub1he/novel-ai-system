@@ -5,7 +5,7 @@ import com.novel.ai.model.dto.request.LoginRequest;
 import com.novel.ai.model.dto.request.RegisterRequest;
 import com.novel.ai.model.dto.response.ApiResponse;
 import com.novel.ai.model.dto.response.AuthResponse;
-import com.novel.ai.service.DebugAuthService;
+import com.novel.ai.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
@@ -14,23 +14,23 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    private final DebugAuthService debugAuthService;
+    private final AuthService authService;
 
-    public AuthController(DebugAuthService debugAuthService) {
-        this.debugAuthService = debugAuthService;
+    public AuthController(AuthService authService) {
+        this.authService = authService;
     }
 
     @PostMapping("/register")
     @SkipAuthentication
     public ApiResponse<AuthResponse> register(@RequestBody RegisterRequest request) {
-        AuthResponse response = debugAuthService.register(request);
+        AuthResponse response = authService.register(request);
         return ApiResponse.success("注册成功", response);
     }
 
     @PostMapping("/login")
     @SkipAuthentication
     public ApiResponse<AuthResponse> login(@RequestBody LoginRequest request) {
-        AuthResponse response = debugAuthService.login(request);
+        AuthResponse response = authService.login(request);
         return ApiResponse.success("登录成功", response);
     }
 

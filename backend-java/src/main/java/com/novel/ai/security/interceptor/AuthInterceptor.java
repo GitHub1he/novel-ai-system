@@ -55,6 +55,7 @@ public class AuthInterceptor implements HandlerInterceptor {
         // 将用户信息存储到request attribute中
         String username = jwtService.extractUsername(token);
         Integer userId = jwtService.extractUserId(token);
+        System.out.println("Extracted user info - Username: " + username + ", UserId: " + userId);
         request.setAttribute("username", username);
         request.setAttribute("userId", userId);
 
