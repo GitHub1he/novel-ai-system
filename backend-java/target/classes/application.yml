@@ -1,0 +1,75 @@
+spring:
+  application:
+    name: novel-ai-system
+  profiles:
+    active: dev
+
+  # JDBC数据源配置 (用于MyBatis)
+  datasource:
+    url: jdbc:postgresql://localhost:5432/novel_ai_db
+    username: novel_ai_user
+    password: novel_ai_password
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  # Redis配置
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 10
+          min-idle: 5
+
+# MyBatis配置
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.novel.ai.model.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# Server配置
+server:
+  port: 8080
+  servlet:
+    context-path: /
+  compression:
+    enabled: true
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    com.novel.ai: DEBUG
+    org.springframework.web: INFO
+
+# JWT配置
+jwt:
+  secret: ${JWT_SECRET:your-secret-key-change-in-production-at-least-256-bits-for-jwt-validation}
+  expiration: 86400000 # 24小时
+
+# AI配置
+ai:
+  zhipuai:
+    api-key: ${ZHIPUAI_API_KEY:your-zhipuai-api-key}
+    base-url: https://open.bigmodel.cn/api/paas/v4/
+    model: glm-4-flash
+    timeout: 60000
+
+# WebSocket配置
+websocket:
+  port: 9000
+
+# 缓存配置
+cache:
+  caffeine:
+    spec: maximumSize=1000,expireAfterWrite=10m

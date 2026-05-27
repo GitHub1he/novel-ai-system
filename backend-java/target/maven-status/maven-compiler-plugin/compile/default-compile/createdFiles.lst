@@ -1,0 +1,5 @@
+com\novel\ai\model\dto\response\ApiResponse.class
+com\novel\ai\NovelAiApplication.class
+com\novel\ai\annotation\SkipAuthentication.class
+com\novel\ai\model\dto\response\ApiResponse$ApiResponseBuilder.class
+com\novel\ai\controller\health\HealthController.class
