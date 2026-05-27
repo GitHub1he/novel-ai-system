@@ -4,6 +4,7 @@ com\novel\ai\exception\BusinessException.class
 com\novel\ai\exception\handler\GlobalExceptionHandler.class
 com\novel\ai\config\AsyncConfig.class
 com\novel\ai\config\WebConfig.class
+com\novel\ai\security\password\PasswordEncoder.class
 com\novel\ai\controller\health\HealthController.class
 com\novel\ai\model\dto\response\ApiResponse.class
 com\novel\ai\NovelAiApplication.class

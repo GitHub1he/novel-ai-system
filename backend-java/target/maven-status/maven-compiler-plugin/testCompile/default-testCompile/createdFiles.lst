@@ -1,1 +1,2 @@
 com\novel\ai\database\DatabaseConnectionTest.class
+com\novel\ai\security\password\PasswordEncoderTest.class

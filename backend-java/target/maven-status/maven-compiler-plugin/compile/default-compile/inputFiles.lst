@@ -7,5 +7,6 @@ D:\02_code\novel-ai-system\backend-java\src\main\java\com\novel\ai\annotation\Sk
 D:\02_code\novel-ai-system\backend-java\src\main\java\com\novel\ai\NovelAiApplication.java
 D:\02_code\novel-ai-system\backend-java\src\main\java\com\novel\ai\config\MyBatisConfig.java
 D:\02_code\novel-ai-system\backend-java\src\main\java\com\novel\ai\model\dto\response\ApiResponse.java
+D:\02_code\novel-ai-system\backend-java\src\main\java\com\novel\ai\security\password\PasswordEncoder.java
 D:\02_code\novel-ai-system\backend-java\src\main\java\com\novel\ai\config\AsyncConfig.java
 D:\02_code\novel-ai-system\backend-java\src\main\java\com\novel\ai\exception\handler\GlobalExceptionHandler.java
