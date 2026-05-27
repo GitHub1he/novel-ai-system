@@ -2,6 +2,7 @@ com\novel\ai\exception\NotFoundException.class
 com\novel\ai\controller\SimpleTestController.class
 com\novel\ai\security\jwt\JwtService.class
 com\novel\ai\service\AuthService.class
+com\novel\ai\service\SimpleAuthServiceImpl$UserInfo.class
 com\novel\ai\config\AsyncConfig.class
 com\novel\ai\config\WebConfig.class
 com\novel\ai\model\dto\response\AuthResponse.class
@@ -19,10 +20,12 @@ com\novel\ai\model\dto\response\AuthResponse$User.class
 com\novel\ai\exception\handler\GlobalExceptionHandler.class
 com\novel\ai\model\dto\request\RegisterRequest.class
 com\novel\ai\security\password\PasswordEncoder.class
+com\novel\ai\service\SimpleAuthServiceImpl.class
 com\novel\ai\controller\AuthController.class
 com\novel\ai\controller\health\HealthController.class
 com\novel\ai\model\dto\request\LoginRequest.class
 com\novel\ai\service\AuthService$User.class
 com\novel\ai\model\dto\response\AuthResponse$User$UserBuilder.class
 com\novel\ai\annotation\SkipAuthentication.class
+com\novel\ai\controller\TestProtectedController.class
 com\novel\ai\service\SimpleAuthService.class

@@ -5,7 +5,7 @@ import com.novel.ai.model.dto.request.LoginRequest;
 import com.novel.ai.model.dto.request.RegisterRequest;
 import com.novel.ai.model.dto.response.ApiResponse;
 import com.novel.ai.model.dto.response.AuthResponse;
-import com.novel.ai.service.AuthService;
+import com.novel.ai.service.SimpleAuthServiceImpl;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
@@ -14,9 +14,9 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    private final AuthService authService;
+    private final SimpleAuthServiceImpl authService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(SimpleAuthServiceImpl authService) {
         this.authService = authService;
     }
 
