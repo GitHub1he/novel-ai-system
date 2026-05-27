@@ -3,6 +3,11 @@ spring:
     name: novel-ai-system
   profiles:
     active: dev
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.zhipuai.autoconfigure.ZhiPuAiChatAutoConfiguration
+      - org.springframework.ai.model.zhipuai.autoconfigure.ZhiPuAiEmbeddingAutoConfiguration
+      - org.springframework.ai.model.zhipuai.autoconfigure.ZhiPuAiImageAutoConfiguration
 
   # JDBC数据源配置 (用于MyBatis)
   datasource:
@@ -60,7 +65,7 @@ jwt:
 # AI配置
 ai:
   zhipuai:
-    api-key: ${ZHIPUAI_API_KEY:your-zhipuai-api-key}
+    api-key: ${ZHIPUAI_API_KEY:test-placeholder-key-for-initial-setup}
     base-url: https://open.bigmodel.cn/api/paas/v4/
     model: glm-4-flash
     timeout: 60000
